@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* Kura360 Design System — derived from Product Design Specification v1.0 */
+
+@theme {
+  /* Primary Palette */
+  --color-navy: #0F2A44;
+  --color-navy-light: #1B3A5C;
+  --color-navy-dark: #0A1929;
+  --color-blue: #2E75B6;
+  --color-blue-light: #4A9FE5;
+  --color-green: #1D6B3F;
+  --color-green-light: #27AE60;
+  --color-green-pale: #E8F5E9;
+  --color-red: #E53E3E;
+  --color-red-pale: #FFF5F5;
+  --color-orange: #ED8936;
+  --color-orange-pale: #FFFAF0;
+  --color-yellow: #ECC94B;
+  --color-yellow-pale: #FFFFF0;
+  --color-purple: #805AD5;
+
+  /* Surfaces */
+  --color-surface-bg: #F7F9FC;
+  --color-surface-card: #FFFFFF;
+  --color-surface-border: #E2E8F0;
+  --color-surface-border-light: #F0F4F8;
+
+  /* Text */
+  --color-text-primary: #1A202C;
+  --color-text-secondary: #4A5568;
+  --color-text-tertiary: #A0AEC0;
+
+  /* Spacing scale */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-sans: 'Segoe UI', -apple-system, system-ui, sans-serif;
+  --font-mono: 'Courier New', monospace;
+}
+
+/* Base styles */
+body {
+  font-family: var(--font-sans);
+  background: var(--color-surface-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Minimum touch targets for mobile (44x44px per spec) */
+@media (pointer: coarse) {
+  button, a, [role="button"], input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Currency formatting helper */
+.currency-kes::before {
+  content: "KES ";
+}
