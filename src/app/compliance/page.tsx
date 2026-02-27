@@ -91,6 +91,13 @@ const complianceChecks = [
     status: "pass" as const,
     category: "Donor",
   },
+  {
+    id: "cash-limit",
+    label: "Cash transaction limit exceeded",
+    description: "2 cash transactions above KES 100,000 without bank documentation",
+    status: "fail" as const,
+    category: "Financial",
+  },
 ];
 
 const recentAlerts = [
