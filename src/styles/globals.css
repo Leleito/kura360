@@ -86,9 +86,9 @@ html {
   background: var(--color-text-tertiary);
 }
 
-/* Minimum touch targets for mobile (44x44px per spec) */
+/* Minimum touch targets for primary interactive elements on mobile */
 @media (pointer: coarse) {
-  button, a, [role="button"], input, select, textarea {
+  .touch-target {
     min-height: 44px;
     min-width: 44px;
   }
