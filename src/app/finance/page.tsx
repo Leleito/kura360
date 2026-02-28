@@ -3,27 +3,39 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
-  DollarSign,
   Wallet,
-  Receipt,
+  TrendingDown,
   Clock,
   Plus,
-  X,
-  Upload,
-  ExternalLink,
+  FileBarChart,
+  Download,
   ArrowRight,
   FileText,
   CheckCircle2,
   AlertCircle,
   XCircle,
+  AlertTriangle,
+  Receipt,
 } from "lucide-react";
-import { StatCard } from "@/components/ui/stat-card";
-import { ProgressBar } from "@/components/ui/progress-bar";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import { AnimatedCounter } from "@/components/premium/animated-counter";
+import { FadeIn } from "@/components/premium/fade-in";
 import { Badge } from "@/components/ui/badge";
 import { formatKES, formatDateShort, cn, percentage } from "@/lib/utils";
 import {
   ECFA_CATEGORIES,
-  TRANSACTION_STATUSES,
   ECFA_SPENDING_LIMIT,
   type ECFACategory,
   type TransactionStatus,
@@ -41,11 +53,23 @@ interface Transaction {
   amount: number;
   receipt_url: string | null;
   status: TransactionStatus;
-  notes: string;
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Mock data - 10 realistic Kenyan campaign transactions                     */
+/*  Category colour mapping                                                   */
+/* -------------------------------------------------------------------------- */
+
+const CATEGORY_COLORS: Record<ECFACategory, string> = {
+  Advertising: "#2E75B6",
+  Publicity: "#805AD5",
+  "Venue Hire": "#1D6B3F",
+  Transport: "#ED8936",
+  Personnel: "#E53E3E",
+  "Admin & Other": "#A0AEC0",
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Mock recent transactions                                                  */
 /* -------------------------------------------------------------------------- */
 
 const MOCK_TRANSACTIONS: Transaction[] = [
@@ -57,7 +81,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 850_000,
     receipt_url: "/receipts/txn-001.pdf",
     status: "approved",
-    notes: "Deposit for March 8 rally. Balance KES 400K due on event day.",
   },
   {
     id: "TXN-002",
@@ -67,7 +90,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 375_000,
     receipt_url: "/receipts/txn-002.pdf",
     status: "approved",
-    notes: "Full-colour A5 flyers for Nairobi county distribution.",
   },
   {
     id: "TXN-003",
@@ -77,7 +99,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 1_200_000,
     receipt_url: "/receipts/txn-003.pdf",
     status: "approved",
-    notes: "Booked via MediaMax agency. Airs 7pm-9pm slot.",
   },
   {
     id: "TXN-004",
@@ -87,7 +108,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 650_000,
     receipt_url: null,
     status: "pending",
-    notes: "Branded T-shirts for Rift Valley grassroots mobilisation.",
   },
   {
     id: "TXN-005",
@@ -97,7 +117,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 420_000,
     receipt_url: "/receipts/txn-005.pdf",
     status: "approved",
-    notes: "3-day coastal campaign swing: Mombasa, Kilifi, Kwale.",
   },
   {
     id: "TXN-006",
@@ -107,7 +126,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 540_000,
     receipt_url: "/receipts/txn-006.pdf",
     status: "approved",
-    notes: "18 coordinators x KES 30,000 for February 2026.",
   },
   {
     id: "TXN-007",
@@ -117,7 +135,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 320_000,
     receipt_url: null,
     status: "pending",
-    notes: "2 weeks morning drive-time. Awaiting signed media plan.",
   },
   {
     id: "TXN-008",
@@ -127,32 +144,11 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     amount: 450_000,
     receipt_url: "/receipts/txn-008.pdf",
     status: "approved",
-    notes: "Q1 2026 rent. 4-bedroom converted office, 2nd floor.",
-  },
-  {
-    id: "TXN-009",
-    date: "2026-02-17",
-    description: "Sound & stage equipment hire - Kisumu rally",
-    category: "Venue Hire",
-    amount: 280_000,
-    receipt_url: "/receipts/txn-009.pdf",
-    status: "approved",
-    notes: "Full PA system, LED screens, generators for Jomo Kenyatta Ground.",
-  },
-  {
-    id: "TXN-010",
-    date: "2026-02-16",
-    description: "Billboard printing (6 units) - highways Nairobi-Nakuru",
-    category: "Publicity",
-    amount: 720_000,
-    receipt_url: null,
-    status: "rejected",
-    notes: "Rejected: vendor not in approved supplier list.",
   },
 ];
 
 /* -------------------------------------------------------------------------- */
-/*  Category budget allocations (mock sub-limits within the KES 35M ceiling)  */
+/*  Category budget allocations (mock sub-limits within KES 35M ceiling)      */
 /* -------------------------------------------------------------------------- */
 
 const CATEGORY_BUDGETS: Record<ECFACategory, number> = {
@@ -165,7 +161,34 @@ const CATEGORY_BUDGETS: Record<ECFACategory, number> = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*  Helper: status badge variant map                                          */
+/*  Mock spending trend (last 30 days)                                        */
+/* -------------------------------------------------------------------------- */
+
+const SPENDING_TREND = [
+  { date: "Jan 30", amount: 280_000 },
+  { date: "Feb 1", amount: 120_000 },
+  { date: "Feb 3", amount: 450_000 },
+  { date: "Feb 5", amount: 0 },
+  { date: "Feb 7", amount: 185_000 },
+  { date: "Feb 9", amount: 200_000 },
+  { date: "Feb 10", amount: 185_000 },
+  { date: "Feb 11", amount: 275_000 },
+  { date: "Feb 13", amount: 240_000 },
+  { date: "Feb 14", amount: 160_000 },
+  { date: "Feb 15", amount: 185_000 },
+  { date: "Feb 17", amount: 280_000 },
+  { date: "Feb 18", amount: 450_000 },
+  { date: "Feb 19", amount: 320_000 },
+  { date: "Feb 20", amount: 540_000 },
+  { date: "Feb 21", amount: 420_000 },
+  { date: "Feb 22", amount: 650_000 },
+  { date: "Feb 23", amount: 1_200_000 },
+  { date: "Feb 24", amount: 375_000 },
+  { date: "Feb 25", amount: 850_000 },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
 
 function statusBadge(status: TransactionStatus) {
@@ -188,46 +211,56 @@ function statusIcon(status: TransactionStatus) {
   }
 }
 
+function formatCompact(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return value.toString();
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Custom Recharts Tooltip                                                   */
+/* -------------------------------------------------------------------------- */
+
+function CustomBarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { category: string; spent: number; budget: number } }> }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white rounded-lg shadow-lg border border-surface-border px-3 py-2 text-xs">
+      <p className="font-bold text-navy">{d.category}</p>
+      <p className="text-text-secondary">Spent: <span className="font-semibold text-text-primary">{formatKES(d.spent)}</span></p>
+      <p className="text-text-tertiary">Budget: {formatKES(d.budget)}</p>
+    </div>
+  );
+}
+
+function CustomAreaTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { date: string; amount: number } }> }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white rounded-lg shadow-lg border border-surface-border px-3 py-2 text-xs">
+      <p className="font-semibold text-text-secondary">{d.date}</p>
+      <p className="font-bold text-navy">{formatKES(d.amount)}</p>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export default function FinancePage() {
-  /* ---- Filters ---- */
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-
-  /* ---- Modal ---- */
-  const [modalOpen, setModalOpen] = useState(false);
-
-  /* ---- Form state ---- */
-  const [formDescription, setFormDescription] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formDate, setFormDate] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-
   /* ---- Derived data ---- */
-  const filteredTransactions = useMemo(() => {
-    return MOCK_TRANSACTIONS.filter((t) => {
-      if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
-      if (categoryFilter && t.category !== categoryFilter) return false;
-      if (statusFilter && t.status !== statusFilter) return false;
-      return true;
-    });
-  }, [search, categoryFilter, statusFilter]);
-
-  const totalSpent = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce(
-    (sum, t) => sum + t.amount,
-    0
+  const totalSpent = useMemo(
+    () =>
+      MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce((sum, t) => sum + t.amount, 0),
+    []
   );
   const budgetRemaining = ECFA_SPENDING_LIMIT - totalSpent;
-  const totalTransactions = MOCK_TRANSACTIONS.length;
   const pendingApprovals = MOCK_TRANSACTIONS.filter((t) => t.status === "pending").length;
+  const utilPct = percentage(totalSpent, ECFA_SPENDING_LIMIT);
 
   /* Spending per category (approved only) */
-  const spendingByCategory = useMemo(() => {
+  const categoryData = useMemo(() => {
     const map: Partial<Record<ECFACategory, number>> = {};
     MOCK_TRANSACTIONS.filter((t) => t.status === "approved").forEach((t) => {
       map[t.category] = (map[t.category] || 0) + t.amount;
@@ -236,364 +269,424 @@ export default function FinancePage() {
       category: cat,
       spent: map[cat] || 0,
       budget: CATEGORY_BUDGETS[cat],
+      fill: CATEGORY_COLORS[cat],
     }));
   }, []);
 
-  /* ---- Form handlers ---- */
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    // In production this would call the Supabase insert + validate via Zod
-    setModalOpen(false);
-    resetForm();
-  }
-
-  function resetForm() {
-    setFormDescription("");
-    setFormAmount("");
-    setFormCategory("");
-    setFormDate("");
-    setFormNotes("");
-  }
+  /* Donut data */
+  const donutData = [
+    { name: "Spent", value: totalSpent, color: "#2E75B6" },
+    { name: "Remaining", value: budgetRemaining, color: "#E2E8F0" },
+  ];
 
   /* ------------------------------------------------------------------ */
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
   return (
-    <div>
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-lg font-bold text-navy">
-            Campaign Finance &mdash; Expenditure Ledger
-          </h1>
-          <p className="text-xs text-text-tertiary mt-0.5">
-            ECFA compliant spending limit: {formatKES(ECFA_SPENDING_LIMIT)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/finance/transactions"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue hover:text-blue-light transition-colors"
-          >
-            View all transactions
-            <ArrowRight size={14} />
-          </Link>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-          >
-            <Plus size={14} />
-            Record Transaction
-          </button>
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard
-          label="Total Spent"
-          value={formatKES(totalSpent)}
-          sub={`${percentage(totalSpent, ECFA_SPENDING_LIMIT)}% of limit used`}
-          variant="blue"
-        />
-        <StatCard
-          label="Budget Remaining"
-          value={formatKES(budgetRemaining)}
-          sub={`${percentage(budgetRemaining, ECFA_SPENDING_LIMIT)}% available`}
-          variant="green"
-        />
-        <StatCard
-          label="Transactions"
-          value={totalTransactions.toString()}
-          sub="All categories combined"
-          variant="navy"
-        />
-        <StatCard
-          label="Pending Approvals"
-          value={pendingApprovals.toString()}
-          sub={pendingApprovals > 0 ? "Requires review" : "All clear"}
-          variant={pendingApprovals > 0 ? "orange" : "green"}
-        />
-      </div>
-
-      {/* Spending by category + filters/table */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {/* Category spending bars */}
-        <div className="bg-white rounded-xl p-4 border border-surface-border">
-          <h2 className="text-sm font-bold text-navy mb-4">Spending by ECFA Category</h2>
-          {spendingByCategory.map((item) => (
-            <ProgressBar
-              key={item.category}
-              value={item.spent / 1_000_000}
-              max={item.budget / 1_000_000}
-              label={`${item.category} \u2014 ${formatKES(item.spent)}`}
-            />
-          ))}
-          <p className="text-[9px] text-text-tertiary mt-2">
-            Bars show approved spend vs. category sub-limit (millions KES).
-          </p>
-        </div>
-
-        {/* Transactions table */}
-        <div className="lg:col-span-2 bg-white rounded-xl p-4 border border-surface-border">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h2 className="text-sm font-bold text-navy">Recent Transactions</h2>
+    <div className="space-y-6">
+      {/* ---- Page header ---- */}
+      <FadeIn direction="none" duration={0.3}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-extrabold text-navy tracking-tight">
+              Campaign Finance
+            </h1>
+            <p className="text-xs text-text-tertiary mt-1">
+              ECFA compliant spending limit: {formatKES(ECFA_SPENDING_LIMIT)}
+            </p>
           </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+              <FileBarChart size={15} />
+              Generate Report
+            </button>
+            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+              <Download size={15} />
+              Export CSV
+            </button>
+            <Link
+              href="/finance/transactions"
+              className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+            >
+              <Plus size={15} />
+              Record Transaction
+            </Link>
+          </div>
+        </div>
+      </FadeIn>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            <div className="relative flex-1 min-w-[180px]">
-              <input
-                type="text"
-                placeholder="Search transactions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue/30"
-              />
+      {/* ---- 4 Premium Stat Cards ---- */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <FadeIn delay={0.05} direction="up">
+          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+                Total Budget
+              </p>
+              <div className="h-8 w-8 rounded-lg bg-blue/10 flex items-center justify-center">
+                <Wallet size={16} className="text-blue" />
+              </div>
             </div>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-            >
-              <option value="">All Categories</option>
+            <AnimatedCounter
+              value={ECFA_SPENDING_LIMIT}
+              formatter={(v) => formatKES(Math.round(v))}
+              className="text-2xl font-extrabold text-navy tabular-nums block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-1.5">ECFA statutory ceiling</p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.1} direction="up">
+          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+                Total Spent
+              </p>
+              <div className="h-8 w-8 rounded-lg bg-green/10 flex items-center justify-center">
+                <Receipt size={16} className="text-green" />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={totalSpent}
+              formatter={(v) => formatKES(Math.round(v))}
+              className="text-2xl font-extrabold text-green tabular-nums block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-1.5">
+              {utilPct}% of limit used
+            </p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.15} direction="up">
+          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+                Remaining
+              </p>
+              <div className="h-8 w-8 rounded-lg bg-navy/10 flex items-center justify-center">
+                <TrendingDown size={16} className="text-navy" />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={budgetRemaining}
+              formatter={(v) => formatKES(Math.round(v))}
+              className="text-2xl font-extrabold text-navy tabular-nums block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-1.5">
+              {percentage(budgetRemaining, ECFA_SPENDING_LIMIT)}% available
+            </p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.2} direction="up">
+          <div className={cn(
+            "bg-white rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow",
+            pendingApprovals > 0 ? "border-orange/30" : "border-surface-border"
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+                Pending Approvals
+              </p>
+              <div className={cn(
+                "h-8 w-8 rounded-lg flex items-center justify-center",
+                pendingApprovals > 0 ? "bg-orange/10" : "bg-green/10"
+              )}>
+                {pendingApprovals > 0 ? (
+                  <AlertTriangle size={16} className="text-orange" />
+                ) : (
+                  <CheckCircle2 size={16} className="text-green" />
+                )}
+              </div>
+            </div>
+            <AnimatedCounter
+              value={pendingApprovals}
+              className="text-2xl font-extrabold text-orange tabular-nums block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-1.5">
+              {pendingApprovals > 0 ? "Requires review" : "All clear"}
+            </p>
+          </div>
+        </FadeIn>
+      </div>
+
+      {/* ---- Charts Row: Category Spending + Budget Donut ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Category Spending BarChart */}
+        <FadeIn delay={0.25} direction="up" className="lg:col-span-2">
+          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-navy">Spending by ECFA Category</h2>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Approved expenditure vs. sub-limits</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 text-[10px] text-text-tertiary">
+                  <span className="h-2 w-2 rounded-full bg-blue inline-block" /> Spent
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-text-tertiary">
+                  <span className="h-2 w-2 rounded-full bg-surface-border inline-block" /> Budget
+                </span>
+              </div>
+            </div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={categoryData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 20, bottom: 0, left: 0 }}
+                  barGap={4}
+                >
+                  <XAxis
+                    type="number"
+                    tickFormatter={(v) => formatCompact(v)}
+                    tick={{ fontSize: 10, fill: "#A0AEC0" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="category"
+                    tick={{ fontSize: 11, fill: "#4A5568", fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={90}
+                  />
+                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#F7F9FC" }} />
+                  <Bar
+                    dataKey="budget"
+                    radius={[0, 4, 4, 0]}
+                    fill="#E2E8F0"
+                    barSize={14}
+                  />
+                  <Bar
+                    dataKey="spent"
+                    radius={[0, 4, 4, 0]}
+                    barSize={14}
+                  >
+                    {categoryData.map((entry) => (
+                      <Cell key={entry.category} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Category color legend */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-surface-border">
               {ECFA_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
+                <span key={cat} className="flex items-center gap-1.5 text-[10px] text-text-secondary">
+                  <span
+                    className="h-2 w-2 rounded-full inline-block"
+                    style={{ backgroundColor: CATEGORY_COLORS[cat] }}
+                  />
                   {cat}
-                </option>
+                </span>
               ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Budget Utilization Donut */}
+        <FadeIn delay={0.3} direction="up">
+          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm flex flex-col items-center">
+            <h2 className="text-sm font-bold text-navy self-start mb-2">Budget Utilization</h2>
+            <p className="text-[10px] text-text-tertiary self-start mb-4">Overall ECFA limit consumption</p>
+            <div className="relative h-[200px] w-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    startAngle={90}
+                    endAngle={-270}
+                    stroke="none"
+                  >
+                    {donutData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Center label */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <AnimatedCounter
+                  value={utilPct}
+                  suffix="%"
+                  className="text-3xl font-extrabold text-navy"
+                />
+                <span className="text-[10px] text-text-tertiary font-medium">Used</span>
+              </div>
+            </div>
+
+            {/* Donut legend */}
+            <div className="flex items-center gap-6 mt-4 pt-4 border-t border-surface-border w-full">
+              <div className="flex-1 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-blue inline-block" />
+                  <span className="text-[10px] font-semibold text-text-secondary">Spent</span>
+                </div>
+                <p className="text-xs font-bold text-navy">{formatKES(totalSpent)}</p>
+              </div>
+              <div className="w-px h-8 bg-surface-border" />
+              <div className="flex-1 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-surface-border inline-block" />
+                  <span className="text-[10px] font-semibold text-text-secondary">Remaining</span>
+                </div>
+                <p className="text-xs font-bold text-navy">{formatKES(budgetRemaining)}</p>
+              </div>
+            </div>
+          </div>
+        </FadeIn>
+      </div>
+
+      {/* ---- Spending Trend AreaChart ---- */}
+      <FadeIn delay={0.35} direction="up">
+        <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-navy">Spending Trend</h2>
+              <p className="text-[10px] text-text-tertiary mt-0.5">Daily approved expenditure over the last 30 days</p>
+            </div>
+          </div>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={SPENDING_TREND} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2E75B6" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#2E75B6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: "#A0AEC0" }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tickFormatter={(v) => formatCompact(v)}
+                  tick={{ fontSize: 10, fill: "#A0AEC0" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={50}
+                />
+                <Tooltip content={<CustomAreaTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#2E75B6"
+                  strokeWidth={2}
+                  fill="url(#spendGradient)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#2E75B6", stroke: "#fff", strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </FadeIn>
+
+      {/* ---- Recent Transactions Table ---- */}
+      <FadeIn delay={0.4} direction="up">
+        <div className="bg-white rounded-2xl border border-surface-border shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+            <div>
+              <h2 className="text-sm font-bold text-navy">Recent Transactions</h2>
+              <p className="text-[10px] text-text-tertiary mt-0.5">Latest {MOCK_TRANSACTIONS.length} expenditure records</p>
+            </div>
+            <Link
+              href="/finance/transactions"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-blue hover:text-blue/80 transition-colors"
             >
-              <option value="">All Statuses</option>
-              {TRANSACTION_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            </select>
+              View all
+              <ArrowRight size={14} />
+            </Link>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-surface-border text-left">
-                  <th className="pb-2 pr-3 font-semibold text-text-tertiary">Date</th>
-                  <th className="pb-2 pr-3 font-semibold text-text-tertiary">Description</th>
-                  <th className="pb-2 pr-3 font-semibold text-text-tertiary">Category</th>
-                  <th className="pb-2 pr-3 font-semibold text-text-tertiary text-right">Amount (KES)</th>
-                  <th className="pb-2 pr-3 font-semibold text-text-tertiary text-center">Receipt</th>
-                  <th className="pb-2 font-semibold text-text-tertiary">Status</th>
+                <tr className="bg-surface-bg/50">
+                  <th className="text-left px-5 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Date</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Description</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Category</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Amount</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Receipt</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-text-tertiary">
-                      No transactions match your filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTransactions.map((t) => {
-                    const badge = statusBadge(t.status);
-                    return (
-                      <tr
-                        key={t.id}
-                        className="border-b border-surface-border-light hover:bg-surface-bg/50 transition-colors"
-                      >
-                        <td className="py-2.5 pr-3 whitespace-nowrap text-text-secondary">
-                          {formatDateShort(t.date)}
-                        </td>
-                        <td className="py-2.5 pr-3 font-medium text-text-primary max-w-[260px] truncate">
-                          {t.description}
-                        </td>
-                        <td className="py-2.5 pr-3 text-text-secondary">{t.category}</td>
-                        <td className="py-2.5 pr-3 text-right font-bold text-navy tabular-nums">
-                          {formatKES(t.amount)}
-                        </td>
-                        <td className="py-2.5 pr-3 text-center">
-                          {t.receipt_url ? (
-                            <span
-                              className="inline-flex items-center gap-0.5 text-blue hover:underline cursor-pointer"
-                              title="View receipt"
-                            >
-                              <FileText size={12} />
-                            </span>
-                          ) : (
-                            <span className="text-text-tertiary">&mdash;</span>
-                          )}
-                        </td>
-                        <td className="py-2.5">
-                          <div className="flex items-center gap-1">
-                            {statusIcon(t.status)}
-                            <Badge text={badge.label} variant={badge.variant} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                {MOCK_TRANSACTIONS.map((t) => {
+                  const badge = statusBadge(t.status);
+                  return (
+                    <tr
+                      key={t.id}
+                      className="border-b border-surface-border/50 hover:bg-surface-bg/30 transition-colors"
+                    >
+                      <td className="px-5 py-3 whitespace-nowrap text-text-secondary">
+                        {formatDateShort(t.date)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-text-primary max-w-[300px]">
+                        <span className="truncate block">{t.description}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 rounded-full inline-block flex-shrink-0"
+                            style={{ backgroundColor: CATEGORY_COLORS[t.category] }}
+                          />
+                          <span className="text-text-secondary">{t.category}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-navy tabular-nums whitespace-nowrap">
+                        {formatKES(t.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {t.receipt_url ? (
+                          <span className="inline-flex items-center gap-0.5 text-green cursor-pointer hover:text-green/80 transition-colors" title="View receipt">
+                            <FileText size={13} />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-orange" title="Receipt missing">
+                            <AlertCircle size={13} />
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {statusIcon(t.status)}
+                          <Badge text={badge.label} variant={badge.variant} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
 
-      {/* ---------------------------------------------------------------- */}
-      {/*  Record Transaction Modal                                       */}
-      {/* ---------------------------------------------------------------- */}
-
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
-              <h3 className="text-sm font-bold text-navy">Record Transaction</h3>
-              <button
-                onClick={() => {
-                  setModalOpen(false);
-                  resetForm();
-                }}
-                className="p-1 rounded-md hover:bg-surface-bg transition-colors"
-                aria-label="Close"
-              >
-                <X size={16} className="text-text-tertiary" />
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* Description */}
-              <div>
-                <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  required
-                  minLength={3}
-                  maxLength={200}
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="e.g. Rally venue hire - Uhuru Gardens"
-                  className="w-full text-xs px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue/30"
-                />
-              </div>
-
-              {/* Amount + Category row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                    Amount (KES)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-tertiary font-semibold">
-                      KES
-                    </span>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      max={ECFA_SPENDING_LIMIT}
-                      value={formAmount}
-                      onChange={(e) => setFormAmount(e.target.value)}
-                      placeholder="0"
-                      className="w-full text-xs pl-11 pr-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue/30 tabular-nums"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                    Category
-                  </label>
-                  <select
-                    required
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full text-xs px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-                  >
-                    <option value="">Select category</option>
-                    {ECFA_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Date */}
-              <div>
-                <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                  Transaction Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-full text-xs px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-text-primary focus:outline-none focus:ring-2 focus:ring-blue/30"
-                />
-              </div>
-
-              {/* Receipt upload placeholder */}
-              <div>
-                <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                  Receipt / Evidence
-                </label>
-                <div className="border-2 border-dashed border-surface-border rounded-lg p-4 text-center hover:border-blue/40 transition-colors cursor-pointer">
-                  <Upload size={20} className="mx-auto text-text-tertiary mb-1" />
-                  <p className="text-[10px] text-text-tertiary">
-                    Click or drag to upload receipt (PDF, JPG, PNG &mdash; max 10 MB)
-                  </p>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                  Notes (optional)
-                </label>
-                <textarea
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  placeholder="Additional details for audit trail..."
-                  className="w-full text-xs px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue/30 resize-none"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    resetForm();
-                  }}
-                  className="text-xs font-semibold text-text-secondary px-4 py-2 rounded-lg hover:bg-surface-bg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-5 py-2 rounded-lg hover:opacity-90 transition-opacity"
-                >
-                  <Plus size={14} />
-                  Save Transaction
-                </button>
-              </div>
-            </form>
+          {/* Table footer */}
+          <div className="flex items-center justify-between px-5 py-3 bg-surface-bg/30 border-t border-surface-border">
+            <p className="text-[10px] text-text-tertiary">
+              Showing {MOCK_TRANSACTIONS.length} most recent transactions
+            </p>
+            <Link
+              href="/finance/transactions"
+              className="text-[10px] font-semibold text-blue hover:underline"
+            >
+              See all transactions &rarr;
+            </Link>
           </div>
         </div>
-      )}
+      </FadeIn>
     </div>
   );
 }

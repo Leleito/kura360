@@ -49,8 +49,8 @@
   --radius-full: 9999px;
 
   /* Typography */
-  --font-sans: 'Segoe UI', -apple-system, system-ui, sans-serif;
-  --font-mono: 'Courier New', monospace;
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 /* Base styles */
@@ -60,6 +60,30 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-border);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
 }
 
 /* Minimum touch targets for mobile (44x44px per spec) */
@@ -80,4 +104,68 @@ body {
 /* Currency formatting helper */
 .currency-kes::before {
   content: "KES ";
+}
+
+/* Premium card hover effect */
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(15, 42, 68, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Pulse dot animation (for live status indicators) */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-border-light) 25%,
+    var(--color-surface-border) 50%,
+    var(--color-surface-border-light) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Monospace hash display */
+.hash-display {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+/* Recharts responsive container fix */
+.recharts-responsive-container {
+  min-height: 0 !important;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(46, 117, 182, 0.2);
+  color: var(--color-navy);
 }

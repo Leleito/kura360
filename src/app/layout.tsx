@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "@/styles/globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -30,8 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" dir="ltr">
-      <body className="min-h-screen bg-surface-bg text-text-primary antialiased">
+    <html lang="en" dir="ltr" className={inter.variable}>
+      <body className="min-h-screen bg-surface-bg text-text-primary antialiased font-sans">
         {children}
       </body>
     </html>

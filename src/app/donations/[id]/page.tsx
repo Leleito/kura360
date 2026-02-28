@@ -20,9 +20,16 @@ import {
   Receipt,
   Clock,
   Building2,
+  Flag,
+  Download,
+  Smartphone,
+  Banknote,
+  ExternalLink,
 } from 'lucide-react';
 import { cn, formatKES, formatDate, formatDateShort, formatPhone } from '@/lib/utils';
 import { Button, Badge, Avatar } from '@/components/ui';
+import { FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
+import { AnimatedCounter } from '@/components/premium';
 import {
   DONATION_METHOD_LABELS,
   ECFA_ANONYMOUS_THRESHOLD,
@@ -61,23 +68,47 @@ interface ComplianceCheck {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Mock Data — Full donation records keyed by ID                             */
+/*  Method colors + icons                                                     */
+/* -------------------------------------------------------------------------- */
+
+const METHOD_COLORS: Record<DonationMethod, string> = {
+  mpesa: '#1D6B3F',
+  bank: '#2E75B6',
+  cash: '#ED8936',
+  cheque: '#805AD5',
+};
+
+function methodIcon(method: DonationMethod) {
+  switch (method) {
+    case 'mpesa':
+      return <Smartphone className="h-5 w-5" />;
+    case 'bank':
+      return <Building2 className="h-5 w-5" />;
+    case 'cash':
+      return <Banknote className="h-5 w-5" />;
+    case 'cheque':
+      return <Receipt className="h-5 w-5" />;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Mock Data                                                                 */
 /* -------------------------------------------------------------------------- */
 
 const MOCK_DONATIONS: Record<string, DonationDetail> = {
   don_001: {
     id: 'don_001',
-    donor_name: 'Wanjiku Kamau',
+    donor_name: 'Grace Wanjiku Muthoni',
     donor_phone: '+254712345678',
     national_id: '28456712',
-    amount: 50_000,
+    amount: 250_000,
     method: 'mpesa',
     reference: 'QJH7T2KXMR',
     kyc_status: 'verified',
     compliance: 'compliant',
     flagged_reason: null,
     anonymous: false,
-    notes: 'Monthly supporter contribution',
+    notes: 'Business supporter — monthly pledge from Nairobi office',
     donated_at: '2026-02-27T09:30:00Z',
     receipt_number: 'RCP-2026-0001',
     created_at: '2026-02-27T09:31:12Z',
@@ -94,7 +125,7 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     compliance: 'compliant',
     flagged_reason: null,
     anonymous: false,
-    notes: 'Bank transfer from Equity account',
+    notes: 'Equity Bank transfer — business supporter',
     donated_at: '2026-02-26T14:15:00Z',
     receipt_number: 'RCP-2026-0002',
     created_at: '2026-02-26T14:16:45Z',
@@ -104,14 +135,14 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Akinyi Nyambura',
     donor_phone: '+254734567890',
     national_id: '27893456',
-    amount: 25_000,
+    amount: 75_000,
     method: 'mpesa',
     reference: 'RNL4P8VBZQ',
     kyc_status: 'verified',
     compliance: 'compliant',
     flagged_reason: null,
     anonymous: false,
-    notes: '',
+    notes: 'Recurring monthly contributor',
     donated_at: '2026-02-25T11:45:00Z',
     receipt_number: 'RCP-2026-0003',
     created_at: '2026-02-25T11:46:33Z',
@@ -128,7 +159,7 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     compliance: 'violation',
     flagged_reason: 'Anonymous donation exceeds KES 5,000 ECFA threshold',
     anonymous: true,
-    notes: 'Cash donation at Nairobi rally',
+    notes: 'Cash donation at Uhuru Gardens rally',
     donated_at: '2026-02-24T16:20:00Z',
     receipt_number: 'RCP-2026-0004',
     created_at: '2026-02-24T16:21:08Z',
@@ -155,7 +186,7 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Njeri Mwangi',
     donor_phone: '+254756789012',
     national_id: '29876543',
-    amount: 10_000,
+    amount: 45_000,
     method: 'mpesa',
     reference: 'TYK9M3HDWF',
     kyc_status: 'pending',
@@ -172,7 +203,7 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Kipchoge Ruto',
     donor_phone: '+254767890123',
     national_id: '25678934',
-    amount: 75_000,
+    amount: 180_000,
     method: 'bank',
     reference: 'EQT-TRF-54382',
     kyc_status: 'verified',
@@ -189,14 +220,14 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Fatuma Hassan',
     donor_phone: '+254778901234',
     national_id: '32145678',
-    amount: 5_000,
+    amount: 25_000,
     method: 'mpesa',
     reference: 'BNX2L6JCPA',
     kyc_status: 'verified',
     compliance: 'compliant',
     flagged_reason: null,
     anonymous: false,
-    notes: 'Small donor — grassroots contribution',
+    notes: 'Grassroots contribution — Mombasa chapter',
     donated_at: '2026-02-20T12:10:00Z',
     receipt_number: 'RCP-2026-0008',
     created_at: '2026-02-20T12:11:15Z',
@@ -206,14 +237,14 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Omondi Juma',
     donor_phone: '+254789012345',
     national_id: '27654321',
-    amount: 200_000,
+    amount: 320_000,
     method: 'bank',
     reference: 'NCBA-TRF-11029',
     kyc_status: 'verified',
     compliance: 'compliant',
     flagged_reason: null,
     anonymous: false,
-    notes: 'NCBA Bank transfer — business supporter',
+    notes: 'NCBA Bank transfer — construction magnate',
     donated_at: '2026-02-19T09:00:00Z',
     receipt_number: 'RCP-2026-0009',
     created_at: '2026-02-19T09:01:40Z',
@@ -223,57 +254,22 @@ const MOCK_DONATIONS: Record<string, DonationDetail> = {
     donor_name: 'Chebet Langat',
     donor_phone: '+254790123456',
     national_id: '30987654',
-    amount: 3_000,
+    amount: 12_000,
     method: 'mpesa',
     reference: 'WSG5R1PMNE',
     kyc_status: 'pending',
     compliance: 'flagged',
     flagged_reason: 'KYC verification incomplete',
     anonymous: false,
-    notes: '',
+    notes: 'Eldoret supporter',
     donated_at: '2026-02-18T17:30:00Z',
     receipt_number: 'RCP-2026-0010',
     created_at: '2026-02-18T17:31:05Z',
   },
-  don_011: {
-    id: 'don_011',
-    donor_name: 'Amina Wekesa',
-    donor_phone: '+254701234567',
-    national_id: '26543210',
-    amount: 30_000,
-    method: 'mpesa',
-    reference: 'FKQ8D4YNVT',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Recurring monthly donor',
-    donated_at: '2026-02-17T13:15:00Z',
-    receipt_number: 'RCP-2026-0011',
-    created_at: '2026-02-17T13:16:20Z',
-  },
-  don_012: {
-    id: 'don_012',
-    donor_name: 'Barasa Wafula',
-    donor_phone: '+254712098765',
-    national_id: '33210987',
-    amount: 45_000,
-    method: 'cheque',
-    reference: 'CHQ-00891',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'KCB cheque deposit',
-    donated_at: '2026-02-16T10:45:00Z',
-    receipt_number: 'RCP-2026-0012',
-    created_at: '2026-02-16T10:46:50Z',
-  },
 };
 
 /**
- * Mock donation history (previous donations from the same donor).
- * In production, this would be a Supabase query filtered by national_id.
+ * Simulated donor history: previous donations from the same donor.
  */
 function getDonorHistory(nationalId: string, currentId: string): DonationDetail[] {
   return Object.values(MOCK_DONATIONS).filter(
@@ -316,45 +312,44 @@ function complianceBadge(status: ComplianceStatus) {
   return <Badge text={text} variant={variant} />;
 }
 
+function maskNationalId(id: string): string {
+  if (id.length <= 3) return id;
+  return id.slice(0, 2) + '*'.repeat(id.length - 4) + id.slice(-2);
+}
+
 function buildComplianceChecks(donation: DonationDetail): ComplianceCheck[] {
   const checks: ComplianceCheck[] = [];
 
-  // 1. Anonymous threshold check
   checks.push({
     label: 'Anonymous Threshold',
     description: `Anonymous donations must not exceed KES ${ECFA_ANONYMOUS_THRESHOLD.toLocaleString()}`,
     passed: !(donation.anonymous && donation.amount > ECFA_ANONYMOUS_THRESHOLD),
   });
 
-  // 2. KYC verification
   checks.push({
     label: 'KYC Verification',
     description: 'Donor identity must be verified with a valid national ID',
     passed: donation.kyc_status === 'verified',
   });
 
-  // 3. Individual donation limit
   checks.push({
     label: 'Individual Limit',
     description: `Single donation must not exceed KES ${ECFA_INDIVIDUAL_LIMIT.toLocaleString()}`,
     passed: donation.amount <= ECFA_INDIVIDUAL_LIMIT,
   });
 
-  // 4. Payment reference
   checks.push({
     label: 'Payment Reference',
     description: 'A valid payment reference or receipt number must be recorded',
     passed: donation.reference.length > 0 || donation.method === 'cash',
   });
 
-  // 5. Donor contact info
   checks.push({
     label: 'Donor Contact',
     description: 'Donor phone number must be a valid Kenyan number (+254...)',
     passed: !donation.anonymous && donation.donor_phone.startsWith('+254'),
   });
 
-  // 6. Receipt issued
   checks.push({
     label: 'Receipt Issued',
     description: 'An official campaign receipt must be generated for each donation',
@@ -378,7 +373,7 @@ function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 py-2.5">
+    <div className="flex items-start gap-3 py-3">
       <Icon className="h-4 w-4 text-text-tertiary mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-[10px] uppercase tracking-wide font-semibold text-text-tertiary">
@@ -408,6 +403,9 @@ export default function DonationDetailPage({
   if (!donation) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
+        <div className="h-16 w-16 rounded-full bg-surface-bg flex items-center justify-center mb-4">
+          <FileText className="h-8 w-8 text-text-tertiary" />
+        </div>
         <p className="text-lg font-semibold text-text-primary mb-2">
           Donation not found
         </p>
@@ -431,244 +429,340 @@ export default function DonationDetailPage({
   return (
     <div>
       {/* ---- Header ---- */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/donations')}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold text-navy">Donation Detail</h1>
-          <p className="text-xs text-text-tertiary font-mono">{donation.id}</p>
+      <FadeIn direction="down" duration={0.35}>
+        <div className="flex items-center gap-3 mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/donations')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-navy">Donation Detail</h1>
+            <p className="text-xs text-text-tertiary font-mono">{donation.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {complianceBadge(donation.compliance)}
+            {kycBadge(donation.kyc_status)}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {complianceBadge(donation.compliance)}
-          {kycBadge(donation.kyc_status)}
-        </div>
-      </div>
+      </FadeIn>
 
       {/* ---- Flagged warning banner ---- */}
       {donation.flagged_reason && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-pale border border-red/20 mb-6">
-          <AlertTriangle className="h-5 w-5 text-red shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-red">Compliance Issue</p>
-            <p className="text-xs text-red/80 mt-0.5">{donation.flagged_reason}</p>
+        <FadeIn delay={0.1}>
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-pale border border-red/20 mb-6">
+            <div className="h-8 w-8 rounded-lg bg-red/10 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red">Compliance Issue Detected</p>
+              <p className="text-xs text-red/80 mt-0.5">{donation.flagged_reason}</p>
+              <p className="text-[10px] text-text-tertiary mt-1">
+                This donation has been flagged under the Election Campaign Financing Act.
+                Immediate action is required.
+              </p>
+            </div>
           </div>
-        </div>
+        </FadeIn>
       )}
 
-      {/* ---- Content Grid ---- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Column 1: Donor Info */}
-        <div className="bg-white rounded-xl border border-surface-border p-5">
-          <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Donor Information
-          </h2>
-
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-surface-border">
-            <Avatar name={donation.donor_name} size="lg" />
-            <div>
-              <p className="text-base font-semibold text-text-primary">
-                {donation.donor_name}
-              </p>
-              <p className="text-xs text-text-tertiary">
-                {donation.anonymous ? 'Anonymous Donor' : 'Identified Donor'}
-              </p>
-            </div>
-          </div>
-
-          <div className="divide-y divide-surface-border-light">
-            <DetailRow icon={Phone} label="Phone">
-              {formatPhone(donation.donor_phone)}
-            </DetailRow>
-            <DetailRow icon={FileText} label="National ID">
-              <span className="font-mono">{donation.national_id}</span>
-            </DetailRow>
-            <DetailRow icon={ShieldCheck} label="KYC Status">
-              <div className="flex items-center gap-2">
-                {kycIcon(donation.kyc_status)}
-                <span
-                  className={cn(
-                    'font-medium capitalize',
-                    donation.kyc_status === 'verified'
-                      ? 'text-green'
-                      : donation.kyc_status === 'pending'
-                        ? 'text-orange'
-                        : 'text-red'
-                  )}
-                >
-                  {donation.kyc_status}
-                </span>
+      {/* ---- Hero Amount Card ---- */}
+      <FadeIn delay={0.15}>
+        <div className="bg-white rounded-xl border border-surface-border p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="h-14 w-14 rounded-xl flex items-center justify-center"
+                style={{ backgroundColor: METHOD_COLORS[donation.method] + '15', color: METHOD_COLORS[donation.method] }}
+              >
+                {methodIcon(donation.method)}
               </div>
-            </DetailRow>
-            <DetailRow icon={HandCoins} label="Total from Donor">
-              <span className="font-semibold text-navy">{formatKES(totalFromDonor)}</span>
-              <span className="text-xs text-text-tertiary ml-1">
-                ({donorHistory.length + 1} donation{donorHistory.length > 0 ? 's' : ''})
-              </span>
-            </DetailRow>
-          </div>
-        </div>
-
-        {/* Column 2: Donation Details + Receipt */}
-        <div className="space-y-4">
-          {/* Donation Details */}
-          <div className="bg-white rounded-xl border border-surface-border p-5">
-            <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Donation Details
-            </h2>
-            <div className="divide-y divide-surface-border-light">
-              <DetailRow icon={HandCoins} label="Amount">
-                <span className="text-xl font-extrabold text-green">
-                  {formatKES(donation.amount)}
-                </span>
-              </DetailRow>
-              <DetailRow icon={Building2} label="Payment Method">
-                {DONATION_METHOD_LABELS[donation.method]}
-              </DetailRow>
-              <DetailRow icon={Hash} label="Reference">
-                <span className="font-mono">
-                  {donation.reference || 'N/A'}
-                </span>
-              </DetailRow>
-              <DetailRow icon={Calendar} label="Donation Date">
-                {formatDate(donation.donated_at)}
-              </DetailRow>
-              <DetailRow icon={Clock} label="Recorded At">
-                {formatDate(donation.created_at)}
-              </DetailRow>
-              {donation.notes && (
-                <DetailRow icon={FileText} label="Notes">
-                  {donation.notes}
-                </DetailRow>
-              )}
+              <div>
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-text-tertiary">
+                  Donation Amount
+                </p>
+                <AnimatedCounter
+                  value={donation.amount}
+                  formatter={(v) => formatKES(Math.round(v))}
+                  className="text-3xl font-extrabold text-navy"
+                />
+                <div className="flex items-center gap-2 mt-1">
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: METHOD_COLORS[donation.method] + '15', color: METHOD_COLORS[donation.method] }}
+                  >
+                    {methodIcon(donation.method)}
+                    {DONATION_METHOD_LABELS[donation.method]}
+                  </span>
+                  <span className="text-xs text-text-tertiary font-mono">
+                    {donation.reference || 'No reference'}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Receipt Card */}
-          <div className="bg-white rounded-xl border border-surface-border p-5">
-            <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
-              <Receipt className="h-4 w-4" />
-              Receipt & Confirmation
-            </h2>
-            <div className="divide-y divide-surface-border-light">
-              <DetailRow icon={Hash} label="Receipt Number">
-                <span className="font-mono font-semibold text-blue">
-                  {donation.receipt_number}
-                </span>
-              </DetailRow>
-              <DetailRow icon={Calendar} label="Issue Date">
-                {formatDateShort(donation.created_at)}
-              </DetailRow>
-              <DetailRow icon={User} label="Issued To">
-                {donation.anonymous ? 'Anonymous' : donation.donor_name}
-              </DetailRow>
-            </div>
-            <div className="mt-4">
-              <Button variant="secondary" size="sm" className="w-full">
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm">
+                <ShieldCheck className="h-4 w-4" />
+                Verify KYC
+              </Button>
+              <Button variant="secondary" size="sm">
+                <Flag className="h-4 w-4" />
+                Flag
+              </Button>
+              <Button variant="secondary" size="sm">
                 <Receipt className="h-4 w-4" />
-                Download Receipt
+                Generate Receipt
+              </Button>
+              <Button variant="secondary" size="sm">
+                <Download className="h-4 w-4" />
+                Export
               </Button>
             </div>
           </div>
         </div>
+      </FadeIn>
 
-        {/* Column 3: Compliance Checks + Donor History */}
-        <div className="space-y-4">
-          {/* Compliance Checks */}
-          <div className="bg-white rounded-xl border border-surface-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-navy flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" />
-                Compliance Checks
-              </h2>
-              <span
-                className={cn(
-                  'text-xs font-bold px-2 py-0.5 rounded-full',
-                  passedChecks === complianceChecks.length
-                    ? 'bg-green-pale text-green'
-                    : 'bg-red-pale text-red'
-                )}
-              >
-                {passedChecks}/{complianceChecks.length} passed
-              </span>
-            </div>
-            <div className="space-y-2">
-              {complianceChecks.map((check) => (
-                <div
-                  key={check.label}
-                  className={cn(
-                    'flex items-start gap-3 p-3 rounded-lg border',
-                    check.passed
-                      ? 'bg-green-pale/30 border-green/10'
-                      : 'bg-red-pale/30 border-red/10'
-                  )}
-                >
-                  {check.passed ? (
-                    <CheckCircle2 className="h-4 w-4 text-green shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <p
-                      className={cn(
-                        'text-xs font-semibold',
-                        check.passed ? 'text-green' : 'text-red'
-                      )}
-                    >
-                      {check.label}
-                    </p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">
-                      {check.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Donor History */}
+      {/* ---- Content Grid ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Column 1: Donor Profile */}
+        <FadeIn delay={0.2}>
           <div className="bg-white rounded-xl border border-surface-border p-5">
             <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Donation History
+              <User className="h-4 w-4" />
+              Donor Profile
             </h2>
-            {donorHistory.length === 0 ? (
-              <p className="text-xs text-text-tertiary py-4 text-center">
-                No other donations from this donor
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {donorHistory.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => router.push(`/donations/${d.id}`)}
-                    className="w-full flex items-center justify-between p-3 rounded-lg border border-surface-border-light hover:bg-surface-bg transition-colors text-left"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-text-primary">
-                        {formatKES(d.amount)}
-                      </p>
-                      <p className="text-[10px] text-text-tertiary">
-                        {formatDateShort(d.donated_at)} via{' '}
-                        {DONATION_METHOD_LABELS[d.method]}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {complianceBadge(d.compliance)}
-                    </div>
-                  </button>
-                ))}
+
+            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-surface-border">
+              <Avatar name={donation.donor_name} size="lg" />
+              <div>
+                <p className="text-base font-semibold text-text-primary">
+                  {donation.donor_name}
+                </p>
+                <p className="text-xs text-text-tertiary">
+                  {donation.anonymous ? 'Anonymous Donor' : 'Identified Donor'}
+                </p>
+                <div className="mt-1">
+                  {kycBadge(donation.kyc_status)}
+                </div>
               </div>
-            )}
+            </div>
+
+            <div className="divide-y divide-surface-border-light">
+              <DetailRow icon={Phone} label="Phone">
+                {formatPhone(donation.donor_phone)}
+              </DetailRow>
+              <DetailRow icon={FileText} label="National ID">
+                <span className="font-mono">{maskNationalId(donation.national_id)}</span>
+              </DetailRow>
+              <DetailRow icon={ShieldCheck} label="KYC Status">
+                <div className="flex items-center gap-2">
+                  {kycIcon(donation.kyc_status)}
+                  <span
+                    className={cn(
+                      'font-medium capitalize',
+                      donation.kyc_status === 'verified'
+                        ? 'text-green'
+                        : donation.kyc_status === 'pending'
+                          ? 'text-orange'
+                          : 'text-red'
+                    )}
+                  >
+                    {donation.kyc_status}
+                  </span>
+                </div>
+              </DetailRow>
+              <DetailRow icon={HandCoins} label="Total from Donor">
+                <span className="font-semibold text-navy">{formatKES(totalFromDonor)}</span>
+                <span className="text-xs text-text-tertiary ml-1">
+                  ({donorHistory.length + 1} donation{donorHistory.length > 0 ? 's' : ''})
+                </span>
+              </DetailRow>
+            </div>
           </div>
-        </div>
+        </FadeIn>
+
+        {/* Column 2: Donation Details */}
+        <FadeIn delay={0.3}>
+          <div className="space-y-4">
+            {/* Donation Details */}
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Donation Details
+              </h2>
+              <div className="divide-y divide-surface-border-light">
+                <DetailRow icon={Building2} label="Payment Method">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex items-center justify-center h-6 w-6 rounded"
+                      style={{ backgroundColor: METHOD_COLORS[donation.method] + '15', color: METHOD_COLORS[donation.method] }}
+                    >
+                      {methodIcon(donation.method)}
+                    </span>
+                    <span className="font-medium">{DONATION_METHOD_LABELS[donation.method]}</span>
+                  </div>
+                </DetailRow>
+                <DetailRow icon={Hash} label="Reference">
+                  <span className="font-mono font-medium">
+                    {donation.reference || 'N/A'}
+                  </span>
+                </DetailRow>
+                <DetailRow icon={Calendar} label="Donation Date">
+                  {formatDate(donation.donated_at)}
+                </DetailRow>
+                <DetailRow icon={Clock} label="Recorded At">
+                  {formatDate(donation.created_at)}
+                </DetailRow>
+                {donation.notes && (
+                  <DetailRow icon={FileText} label="Notes">
+                    <p className="text-text-secondary">{donation.notes}</p>
+                  </DetailRow>
+                )}
+              </div>
+            </div>
+
+            {/* Receipt Card */}
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Receipt
+              </h2>
+              <div className="divide-y divide-surface-border-light">
+                <DetailRow icon={Hash} label="Receipt Number">
+                  <span className="font-mono font-semibold text-blue">
+                    {donation.receipt_number}
+                  </span>
+                </DetailRow>
+                <DetailRow icon={Calendar} label="Issue Date">
+                  {formatDateShort(donation.created_at)}
+                </DetailRow>
+                <DetailRow icon={User} label="Issued To">
+                  {donation.anonymous ? 'Anonymous' : donation.donor_name}
+                </DetailRow>
+              </div>
+              <div className="mt-4">
+                <Button variant="secondary" size="sm" className="w-full">
+                  <Download className="h-4 w-4" />
+                  Download Receipt
+                </Button>
+              </div>
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Column 3: Compliance + History */}
+        <FadeIn delay={0.4}>
+          <div className="space-y-4">
+            {/* ECFA Compliance Checks */}
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-navy flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  ECFA Compliance
+                </h2>
+                <span
+                  className={cn(
+                    'text-xs font-bold px-2.5 py-1 rounded-full',
+                    passedChecks === complianceChecks.length
+                      ? 'bg-green-pale text-green'
+                      : 'bg-red-pale text-red'
+                  )}
+                >
+                  {passedChecks}/{complianceChecks.length} passed
+                </span>
+              </div>
+              <StaggerContainer className="space-y-2" staggerDelay={0.05}>
+                {complianceChecks.map((check) => (
+                  <StaggerItem key={check.label}>
+                    <div
+                      className={cn(
+                        'flex items-start gap-3 p-3 rounded-lg border transition-all',
+                        check.passed
+                          ? 'bg-green-pale/20 border-green/10'
+                          : 'bg-red-pale/20 border-red/10'
+                      )}
+                    >
+                      {check.passed ? (
+                        <div className="h-5 w-5 rounded-full bg-green/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green" />
+                        </div>
+                      ) : (
+                        <div className="h-5 w-5 rounded-full bg-red/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <XCircle className="h-3.5 w-3.5 text-red" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={cn(
+                            'text-xs font-semibold',
+                            check.passed ? 'text-green' : 'text-red'
+                          )}
+                        >
+                          {check.label}
+                        </p>
+                        <p className="text-[10px] text-text-tertiary mt-0.5 leading-relaxed">
+                          {check.description}
+                        </p>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                ))}
+              </StaggerContainer>
+            </div>
+
+            {/* Donor History */}
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <h2 className="text-sm font-bold text-navy mb-4 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Donation History
+              </h2>
+              {donorHistory.length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="h-10 w-10 rounded-full bg-surface-bg flex items-center justify-center mx-auto mb-2">
+                    <HandCoins className="h-5 w-5 text-text-tertiary" />
+                  </div>
+                  <p className="text-xs text-text-tertiary">
+                    No other donations from this donor
+                  </p>
+                </div>
+              ) : (
+                <StaggerContainer className="space-y-2" staggerDelay={0.06}>
+                  {donorHistory.map((d) => (
+                    <StaggerItem key={d.id}>
+                      <button
+                        onClick={() => router.push(`/donations/${d.id}`)}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-surface-border-light hover:bg-surface-bg hover:border-surface-border transition-all text-left group"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-text-primary group-hover:text-navy transition-colors">
+                            {formatKES(d.amount)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: METHOD_COLORS[d.method] }}
+                            />
+                            <p className="text-[10px] text-text-tertiary">
+                              {formatDateShort(d.donated_at)} via{' '}
+                              {DONATION_METHOD_LABELS[d.method]}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {complianceBadge(d.compliance)}
+                          <ExternalLink className="h-3 w-3 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              )}
+            </div>
+          </div>
+        </FadeIn>
       </div>
     </div>
   );

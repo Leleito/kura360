@@ -19,6 +19,7 @@ import {
   Save,
 } from "lucide-react";
 import { cn, formatKES, formatPhone } from "@/lib/utils";
+import { FadeIn } from "@/components/premium";
 
 /* ── Mock data ── */
 const campaignProfile = {
@@ -76,15 +77,17 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[#0F2A44] flex items-center gap-2">
-          <Settings className="h-7 w-7 text-gray-400" />
-          Campaign Settings
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage your campaign profile, team, and preferences
-        </p>
-      </div>
+      <FadeIn direction="none">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0F2A44] flex items-center gap-2">
+            <Settings className="h-7 w-7 text-gray-400" />
+            Campaign Settings
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage your campaign profile, team, and preferences
+          </p>
+        </div>
+      </FadeIn>
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Tabs */}

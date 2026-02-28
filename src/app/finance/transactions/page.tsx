@@ -12,12 +12,17 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown,
+  AlertCircle,
   Filter,
+  Trash2,
+  X,
+  BarChart3,
 } from "lucide-react";
-import { StatCard } from "@/components/ui/stat-card";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
-import { formatKES, formatDateShort, percentage } from "@/lib/utils";
+import { AnimatedCounter } from "@/components/premium/animated-counter";
+import { FadeIn, StaggerContainer, StaggerItem } from "@/components/premium/fade-in";
+import { formatKES, formatDateShort, cn, percentage } from "@/lib/utils";
 import {
   ECFA_CATEGORIES,
   TRANSACTION_STATUSES,
@@ -43,7 +48,20 @@ interface Transaction {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Mock data - 18 realistic Kenyan campaign transactions                     */
+/*  Category colour mapping                                                   */
+/* -------------------------------------------------------------------------- */
+
+const CATEGORY_COLORS: Record<ECFACategory, string> = {
+  Advertising: "#2E75B6",
+  Publicity: "#805AD5",
+  "Venue Hire": "#1D6B3F",
+  Transport: "#ED8936",
+  Personnel: "#E53E3E",
+  "Admin & Other": "#A0AEC0",
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Mock data - 15 realistic Kenyan campaign transactions                     */
 /* -------------------------------------------------------------------------- */
 
 const MOCK_TRANSACTIONS: Transaction[] = [
@@ -182,17 +200,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   {
     id: "TXN-013",
     date: "2026-02-13",
-    description: "Campaign banners (200 units) - Kisii & Nyamira counties",
-    category: "Publicity",
-    amount: 240_000,
-    receipt_url: "/receipts/txn-013.pdf",
-    status: "approved",
-    notes: "PVC banners 3m x 1m for roadside placement.",
-    created_by: "Peter Kipchoge",
-  },
-  {
-    id: "TXN-014",
-    date: "2026-02-12",
     description: "Catering - Eldoret stakeholders' dinner (300 guests)",
     category: "Venue Hire",
     amount: 390_000,
@@ -202,29 +209,18 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     created_by: "James Mwangi",
   },
   {
-    id: "TXN-015",
+    id: "TXN-014",
     date: "2026-02-11",
     description: "Social media management - February retainer",
     category: "Advertising",
     amount: 275_000,
-    receipt_url: "/receipts/txn-015.pdf",
+    receipt_url: "/receipts/txn-014.pdf",
     status: "approved",
     notes: "Agency: Digital Edge Kenya. Facebook, X, TikTok content creation.",
     created_by: "Amina Osman",
   },
   {
-    id: "TXN-016",
-    date: "2026-02-10",
-    description: "Office supplies & IT equipment - campaign HQ",
-    category: "Admin & Other",
-    amount: 185_000,
-    receipt_url: "/receipts/txn-016.pdf",
-    status: "approved",
-    notes: "2 laptops, printer, stationery, WhatsApp Business subscription.",
-    created_by: "Grace Wanjiku",
-  },
-  {
-    id: "TXN-017",
+    id: "TXN-015",
     date: "2026-02-09",
     description: "Helicopter charter - Western Kenya campaign tour",
     category: "Transport",
@@ -233,17 +229,6 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     status: "rejected",
     notes: "Rejected: exceeds per-trip transport policy. Use road convoy instead.",
     created_by: "James Mwangi",
-  },
-  {
-    id: "TXN-018",
-    date: "2026-02-08",
-    description: "Volunteer coordinator wages - Mombasa team (10 staff)",
-    category: "Personnel",
-    amount: 200_000,
-    receipt_url: "/receipts/txn-018.pdf",
-    status: "approved",
-    notes: "10 coordinators x KES 20,000 stipend for February field work.",
-    created_by: "Fatma Hassan",
   },
 ];
 
@@ -299,19 +284,16 @@ export default function TransactionsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   /* ---- Derived: stats ---- */
-  const totalSpent = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce(
-    (sum, t) => sum + t.amount,
-    0
-  );
+  const totalAmount = MOCK_TRANSACTIONS.reduce((s, t) => s + t.amount, 0);
+  const approvedAmount = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce((s, t) => s + t.amount, 0);
   const approvedCount = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").length;
   const pendingCount = MOCK_TRANSACTIONS.filter((t) => t.status === "pending").length;
-  const rejectedCount = MOCK_TRANSACTIONS.filter((t) => t.status === "rejected").length;
+  const approvedPct = percentage(approvedCount, MOCK_TRANSACTIONS.length);
 
   /* ---- Derived: filtered + sorted ---- */
   const filtered = useMemo(() => {
     let list = [...MOCK_TRANSACTIONS];
 
-    // Text search
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -323,25 +305,11 @@ export default function TransactionsPage() {
       );
     }
 
-    // Category
-    if (categoryFilter) {
-      list = list.filter((t) => t.category === categoryFilter);
-    }
+    if (categoryFilter) list = list.filter((t) => t.category === categoryFilter);
+    if (statusFilter) list = list.filter((t) => t.status === statusFilter);
+    if (dateFrom) list = list.filter((t) => t.date >= dateFrom);
+    if (dateTo) list = list.filter((t) => t.date <= dateTo);
 
-    // Status
-    if (statusFilter) {
-      list = list.filter((t) => t.status === statusFilter);
-    }
-
-    // Date range
-    if (dateFrom) {
-      list = list.filter((t) => t.date >= dateFrom);
-    }
-    if (dateTo) {
-      list = list.filter((t) => t.date <= dateTo);
-    }
-
-    // Sort
     list.sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
@@ -411,380 +379,512 @@ export default function TransactionsPage() {
 
   const hasActiveFilters = search || categoryFilter || statusFilter || dateFrom || dateTo;
 
+  function SortIndicator({ columnKey }: { columnKey: SortKey }) {
+    const isActive = sortKey === columnKey;
+    return (
+      <svg
+        className={cn(
+          "h-3 w-3 ml-0.5 transition-colors",
+          isActive ? "text-blue" : "text-text-tertiary/40"
+        )}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16l5 5 5-5M7 8l5-5 5 5" />
+      </svg>
+    );
+  }
+
   /* ------------------------------------------------------------------ */
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
   return (
-    <div>
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/finance"
-            className="p-1.5 rounded-lg hover:bg-surface-bg transition-colors"
-            aria-label="Back to finance dashboard"
-          >
-            <ArrowLeft size={18} className="text-text-secondary" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-bold text-navy">All Transactions</h1>
-            <p className="text-xs text-text-tertiary mt-0.5">
-              Full expenditure ledger &mdash; {MOCK_TRANSACTIONS.length} transactions recorded
-            </p>
-          </div>
-        </div>
-
-        {/* Bulk actions */}
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && (
-            <button className="inline-flex items-center gap-1.5 text-xs font-semibold text-green bg-green-pale px-3 py-2 rounded-lg hover:opacity-90 transition-opacity">
-              <CheckSquare size={14} />
-              Approve Selected ({selected.size})
-            </button>
-          )}
-          <button className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue bg-surface-bg border border-surface-border px-3 py-2 rounded-lg hover:bg-surface-border-light transition-colors">
-            <Download size={14} />
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard
-          label="Total Approved Spend"
-          value={formatKES(totalSpent)}
-          sub={`${percentage(totalSpent, ECFA_SPENDING_LIMIT)}% of KES 35M limit`}
-          variant="blue"
-        />
-        <StatCard
-          label="Approved"
-          value={approvedCount.toString()}
-          sub={`${formatKES(MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce((s, t) => s + t.amount, 0))}`}
-          variant="green"
-        />
-        <StatCard
-          label="Pending Review"
-          value={pendingCount.toString()}
-          sub={`${formatKES(MOCK_TRANSACTIONS.filter((t) => t.status === "pending").reduce((s, t) => s + t.amount, 0))}`}
-          variant="orange"
-        />
-        <StatCard
-          label="Rejected"
-          value={rejectedCount.toString()}
-          sub={`${formatKES(MOCK_TRANSACTIONS.filter((t) => t.status === "rejected").reduce((s, t) => s + t.amount, 0))}`}
-          variant="red"
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl p-4 border border-surface-border mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter size={14} className="text-text-tertiary" />
-          <span className="text-xs font-bold text-text-secondary">Filters</span>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="ml-auto text-[10px] font-semibold text-red hover:underline"
+    <div className="space-y-6">
+      {/* ---- Page header ---- */}
+      <FadeIn direction="none" duration={0.3}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/finance"
+              className="p-2 rounded-xl hover:bg-surface-bg border border-transparent hover:border-surface-border transition-all"
+              aria-label="Back to finance dashboard"
             >
-              Clear all
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <input
-              type="text"
-              placeholder="Search by description, ID, notes, or person..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue/30"
-            />
-          </div>
-
-          {/* Category */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-          >
-            <option value="">All Categories</option>
-            {ECFA_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          {/* Status */}
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-          >
-            <option value="">All Statuses</option>
-            {TRANSACTION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </option>
-            ))}
-          </select>
-
-          {/* Date from */}
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-text-tertiary font-semibold">From</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setPage(1);
-              }}
-              className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-            />
-          </div>
-
-          {/* Date to */}
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-text-tertiary font-semibold">To</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
-              className="text-xs px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/30"
-            />
-          </div>
-        </div>
-
-        {/* Filter summary */}
-        {hasActiveFilters && (
-          <p className="text-[10px] text-text-tertiary mt-2">
-            Showing {filtered.length} of {MOCK_TRANSACTIONS.length} transactions
-            {filtered.length > 0 && <> &mdash; filtered total: <span className="font-bold text-navy">{formatKES(filteredTotal)}</span></>}
-          </p>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-surface-border bg-surface-bg/50">
-                {/* Checkbox */}
-                <th className="px-4 py-3 w-8">
-                  <input
-                    type="checkbox"
-                    checked={paginated.length > 0 && selected.size === paginated.length}
-                    onChange={toggleSelectAll}
-                    className="rounded border-surface-border"
-                    aria-label="Select all"
-                  />
-                </th>
-                <th className="px-3 py-3 text-left">
-                  <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    ID
-                  </span>
-                </th>
-                <th
-                  className="px-3 py-3 text-left cursor-pointer select-none"
-                  onClick={() => toggleSort("date")}
-                >
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Date
-                    <ArrowUpDown size={10} className={sortKey === "date" ? "text-blue" : ""} />
-                  </span>
-                </th>
-                <th
-                  className="px-3 py-3 text-left cursor-pointer select-none"
-                  onClick={() => toggleSort("description")}
-                >
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Description
-                    <ArrowUpDown size={10} className={sortKey === "description" ? "text-blue" : ""} />
-                  </span>
-                </th>
-                <th
-                  className="px-3 py-3 text-left cursor-pointer select-none"
-                  onClick={() => toggleSort("category")}
-                >
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Category
-                    <ArrowUpDown size={10} className={sortKey === "category" ? "text-blue" : ""} />
-                  </span>
-                </th>
-                <th
-                  className="px-3 py-3 text-right cursor-pointer select-none"
-                  onClick={() => toggleSort("amount")}
-                >
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Amount
-                    <ArrowUpDown size={10} className={sortKey === "amount" ? "text-blue" : ""} />
-                  </span>
-                </th>
-                <th className="px-3 py-3 text-center">
-                  <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Receipt
-                  </span>
-                </th>
-                <th
-                  className="px-3 py-3 text-left cursor-pointer select-none"
-                  onClick={() => toggleSort("status")}
-                >
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Status
-                    <ArrowUpDown size={10} className={sortKey === "status" ? "text-blue" : ""} />
-                  </span>
-                </th>
-                <th className="px-3 py-3 text-left">
-                  <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">
-                    Recorded By
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-text-tertiary">
-                    <div className="flex flex-col items-center gap-2">
-                      <FileText size={32} className="text-surface-border" />
-                      <p className="text-sm font-semibold">No transactions found</p>
-                      <p className="text-xs">Try adjusting your filters or search query.</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((t) => {
-                  const badge = statusBadge(t.status);
-                  const isSelected = selected.has(t.id);
-                  return (
-                    <tr
-                      key={t.id}
-                      className={`border-b border-surface-border-light transition-colors ${
-                        isSelected
-                          ? "bg-blue/5"
-                          : "hover:bg-surface-bg/50"
-                      }`}
-                    >
-                      <td className="px-4 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(t.id)}
-                          className="rounded border-surface-border"
-                          aria-label={`Select ${t.id}`}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5 text-text-tertiary font-mono text-[10px]">
-                        {t.id}
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">
-                        {formatDateShort(t.date)}
-                      </td>
-                      <td className="px-3 py-2.5 font-medium text-text-primary max-w-[300px]">
-                        <div className="truncate" title={t.description}>
-                          {t.description}
-                        </div>
-                        {t.notes && (
-                          <p
-                            className="text-[10px] text-text-tertiary truncate mt-0.5"
-                            title={t.notes}
-                          >
-                            {t.notes}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-text-secondary whitespace-nowrap">
-                        {t.category}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-bold text-navy tabular-nums whitespace-nowrap">
-                        {formatKES(t.amount)}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {t.receipt_url ? (
-                          <span
-                            className="inline-flex items-center gap-0.5 text-blue hover:underline cursor-pointer"
-                            title="View receipt"
-                          >
-                            <FileText size={12} />
-                          </span>
-                        ) : (
-                          <span className="text-text-tertiary">&mdash;</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1">
-                          {statusIcon(t.status)}
-                          <Badge text={badge.label} variant={badge.variant} />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-text-secondary whitespace-nowrap">
-                        {t.created_by}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {filtered.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-surface-bg/30">
-            <p className="text-[10px] text-text-tertiary">
-              Showing {(page - 1) * PAGE_SIZE + 1}&ndash;
-              {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} transactions
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="p-1.5 rounded-md hover:bg-surface-border-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Previous page"
-              >
-                <ChevronLeft size={14} className="text-text-secondary" />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  className={`min-w-[28px] h-7 rounded-md text-[10px] font-bold transition-colors ${
-                    p === page
-                      ? "bg-navy text-white"
-                      : "text-text-secondary hover:bg-surface-border-light"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md hover:bg-surface-border-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Next page"
-              >
-                <ChevronRight size={14} className="text-text-secondary" />
-              </button>
+              <ArrowLeft size={18} className="text-text-secondary" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-extrabold text-navy tracking-tight">All Transactions</h1>
+              <p className="text-xs text-text-tertiary mt-0.5">
+                Full expenditure ledger &mdash; {MOCK_TRANSACTIONS.length} transactions recorded
+              </p>
             </div>
           </div>
-        )}
+
+          <div className="flex items-center gap-2">
+            {/* Bulk actions bar */}
+            {selected.size > 0 && (
+              <FadeIn direction="right" duration={0.2}>
+                <div className="flex items-center gap-2 bg-blue/5 rounded-xl px-3 py-1.5 border border-blue/20">
+                  <span className="text-[10px] font-bold text-blue">{selected.size} selected</span>
+                  <button className="inline-flex items-center gap-1 text-[10px] font-semibold text-green bg-green/10 px-2.5 py-1.5 rounded-lg hover:bg-green/20 transition-colors">
+                    <CheckSquare size={12} />
+                    Approve
+                  </button>
+                  <button className="inline-flex items-center gap-1 text-[10px] font-semibold text-red bg-red/10 px-2.5 py-1.5 rounded-lg hover:bg-red/20 transition-colors">
+                    <Trash2 size={12} />
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => setSelected(new Set())}
+                    className="p-1 rounded-md hover:bg-surface-bg transition-colors"
+                    aria-label="Clear selection"
+                  >
+                    <X size={12} className="text-text-tertiary" />
+                  </button>
+                </div>
+              </FadeIn>
+            )}
+            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+              <Download size={15} />
+              Export CSV
+            </button>
+          </div>
+        </div>
+      </FadeIn>
+
+      {/* ---- Summary Stats (4 cards) ---- */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <FadeIn delay={0.05} direction="up">
+          <div className="bg-white rounded-2xl p-4 border border-surface-border shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Total Transactions</p>
+              <div className="h-7 w-7 rounded-lg bg-navy/10 flex items-center justify-center">
+                <BarChart3 size={14} className="text-navy" />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={MOCK_TRANSACTIONS.length}
+              className="text-xl font-extrabold text-navy block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              {formatKES(totalAmount)} total value
+            </p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.1} direction="up">
+          <div className="bg-white rounded-2xl p-4 border border-surface-border shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Approved Spend</p>
+              <div className="h-7 w-7 rounded-lg bg-green/10 flex items-center justify-center">
+                <CheckCircle2 size={14} className="text-green" />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={approvedAmount}
+              formatter={(v) => formatKES(Math.round(v))}
+              className="text-xl font-extrabold text-green block tabular-nums"
+            />
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              {percentage(approvedAmount, ECFA_SPENDING_LIMIT)}% of KES 35M limit
+            </p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.15} direction="up">
+          <div className="bg-white rounded-2xl p-4 border border-surface-border shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Approved Rate</p>
+              <div className="h-7 w-7 rounded-lg bg-blue/10 flex items-center justify-center">
+                <CheckSquare size={14} className="text-blue" />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={approvedPct}
+              suffix="%"
+              className="text-xl font-extrabold text-blue block"
+            />
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              {approvedCount} of {MOCK_TRANSACTIONS.length} approved
+            </p>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.2} direction="up">
+          <div className={cn(
+            "bg-white rounded-2xl p-4 border shadow-sm",
+            pendingCount > 0 ? "border-orange/30" : "border-surface-border"
+          )}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Pending Review</p>
+              <div className={cn(
+                "h-7 w-7 rounded-lg flex items-center justify-center",
+                pendingCount > 0 ? "bg-orange/10" : "bg-green/10"
+              )}>
+                <Clock size={14} className={pendingCount > 0 ? "text-orange" : "text-green"} />
+              </div>
+            </div>
+            <AnimatedCounter
+              value={pendingCount}
+              className={cn(
+                "text-xl font-extrabold block",
+                pendingCount > 0 ? "text-orange" : "text-green"
+              )}
+            />
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              {pendingCount > 0 ? "Requires action" : "All reviewed"}
+            </p>
+          </div>
+        </FadeIn>
       </div>
+
+      {/* ---- Filters ---- */}
+      <FadeIn delay={0.25} direction="up">
+        <div className="bg-white rounded-2xl p-4 border border-surface-border shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter size={14} className="text-text-tertiary" />
+            <span className="text-xs font-bold text-text-secondary">Filters</span>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-red hover:text-red/80 transition-colors"
+              >
+                <X size={10} />
+                Clear all
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {/* Search */}
+            <div className="flex-1 min-w-[220px]">
+              <SearchInput
+                value={search}
+                onChange={(v) => {
+                  setSearch(v);
+                  setPage(1);
+                }}
+                placeholder="Search by description, ID, notes, or person..."
+              />
+            </div>
+
+            {/* Category */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setPage(1);
+              }}
+              className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
+            >
+              <option value="">All Categories</option>
+              {ECFA_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+
+            {/* Status */}
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
+            >
+              <option value="">All Statuses</option>
+              {TRANSACTION_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </option>
+              ))}
+            </select>
+
+            {/* Date from */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-text-tertiary font-semibold whitespace-nowrap">From</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
+              />
+            </div>
+
+            {/* Date to */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-text-tertiary font-semibold whitespace-nowrap">To</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Filter summary */}
+          {hasActiveFilters && (
+            <div className="mt-3 pt-3 border-t border-surface-border">
+              <p className="text-[10px] text-text-tertiary">
+                Showing <span className="font-bold text-text-secondary">{filtered.length}</span> of {MOCK_TRANSACTIONS.length} transactions
+                {filtered.length > 0 && (
+                  <> &mdash; filtered total: <span className="font-bold text-navy">{formatKES(filteredTotal)}</span></>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      </FadeIn>
+
+      {/* ---- Transactions Table ---- */}
+      <FadeIn delay={0.3} direction="up">
+        <div className="bg-white rounded-2xl border border-surface-border shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-surface-bg/50 border-b border-surface-border">
+                  {/* Checkbox */}
+                  <th className="px-4 py-3.5 w-10">
+                    <input
+                      type="checkbox"
+                      checked={paginated.length > 0 && selected.size === paginated.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-surface-border accent-blue"
+                      aria-label="Select all"
+                    />
+                  </th>
+                  <th className="px-3 py-3.5 text-left">
+                    <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">
+                      ID
+                    </span>
+                  </th>
+                  <th
+                    className="px-3 py-3.5 text-left cursor-pointer select-none group"
+                    onClick={() => toggleSort("date")}
+                  >
+                    <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
+                      Date
+                      <SortIndicator columnKey="date" />
+                    </span>
+                  </th>
+                  <th
+                    className="px-3 py-3.5 text-left cursor-pointer select-none group"
+                    onClick={() => toggleSort("description")}
+                  >
+                    <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
+                      Description
+                      <SortIndicator columnKey="description" />
+                    </span>
+                  </th>
+                  <th
+                    className="px-3 py-3.5 text-left cursor-pointer select-none group"
+                    onClick={() => toggleSort("category")}
+                  >
+                    <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
+                      Category
+                      <SortIndicator columnKey="category" />
+                    </span>
+                  </th>
+                  <th
+                    className="px-3 py-3.5 text-right cursor-pointer select-none group"
+                    onClick={() => toggleSort("amount")}
+                  >
+                    <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
+                      Amount
+                      <SortIndicator columnKey="amount" />
+                    </span>
+                  </th>
+                  <th className="px-3 py-3.5 text-center">
+                    <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">
+                      Receipt
+                    </span>
+                  </th>
+                  <th
+                    className="px-3 py-3.5 text-left cursor-pointer select-none group"
+                    onClick={() => toggleSort("status")}
+                  >
+                    <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
+                      Status
+                      <SortIndicator columnKey="status" />
+                    </span>
+                  </th>
+                  <th className="px-3 py-3.5 text-left">
+                    <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">
+                      Recorded By
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+
+              {/* Table body with stagger animation */}
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="h-12 w-12 rounded-xl bg-surface-bg flex items-center justify-center">
+                          <FileText size={24} className="text-text-tertiary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-text-secondary">No transactions found</p>
+                          <p className="text-xs text-text-tertiary mt-0.5">Try adjusting your filters or search query.</p>
+                        </div>
+                        {hasActiveFilters && (
+                          <button
+                            onClick={clearFilters}
+                            className="text-xs font-semibold text-blue hover:underline mt-1"
+                          >
+                            Clear all filters
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <StaggerContainer staggerDelay={0.04}>
+                    {paginated.map((t) => {
+                      const badge = statusBadge(t.status);
+                      const isSelected = selected.has(t.id);
+                      return (
+                        <StaggerItem key={t.id}>
+                          <tr
+                            className={cn(
+                              "border-b border-surface-border/50 transition-colors",
+                              isSelected
+                                ? "bg-blue/5"
+                                : "hover:bg-surface-bg/40"
+                            )}
+                          >
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelect(t.id)}
+                                className="rounded border-surface-border accent-blue"
+                                aria-label={`Select ${t.id}`}
+                              />
+                            </td>
+                            <td className="px-3 py-3 text-text-tertiary font-mono text-[10px]">
+                              {t.id}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap text-text-secondary">
+                              {formatDateShort(t.date)}
+                            </td>
+                            <td className="px-3 py-3 font-medium text-text-primary max-w-[300px]">
+                              <div className="truncate" title={t.description}>
+                                {t.description}
+                              </div>
+                              {t.notes && (
+                                <p
+                                  className="text-[10px] text-text-tertiary truncate mt-0.5 max-w-[280px]"
+                                  title={t.notes}
+                                >
+                                  {t.notes}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span
+                                  className="h-2 w-2 rounded-full inline-block flex-shrink-0"
+                                  style={{ backgroundColor: CATEGORY_COLORS[t.category] }}
+                                />
+                                <span className="text-text-secondary">{t.category}</span>
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right font-bold text-navy tabular-nums whitespace-nowrap">
+                              {formatKES(t.amount)}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {t.receipt_url ? (
+                                <span
+                                  className="inline-flex items-center gap-0.5 text-green cursor-pointer hover:text-green/80 transition-colors"
+                                  title="View receipt"
+                                >
+                                  <FileText size={14} />
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 text-orange" title="Receipt missing">
+                                  <AlertCircle size={14} />
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-1">
+                                {statusIcon(t.status)}
+                                <Badge text={badge.label} variant={badge.variant} />
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-text-secondary whitespace-nowrap text-[11px]">
+                              {t.created_by}
+                            </td>
+                          </tr>
+                        </StaggerItem>
+                      );
+                    })}
+                  </StaggerContainer>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ---- Pagination ---- */}
+          {filtered.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-surface-border bg-surface-bg/30">
+              <p className="text-[10px] text-text-tertiary">
+                Showing{" "}
+                <span className="font-semibold text-text-secondary">
+                  {(page - 1) * PAGE_SIZE + 1}&ndash;{Math.min(page * PAGE_SIZE, filtered.length)}
+                </span>{" "}
+                of {filtered.length} transactions
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-surface-border disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={14} className="text-text-secondary" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={cn(
+                      "min-w-[32px] h-8 rounded-lg text-[11px] font-bold transition-all",
+                      p === page
+                        ? "bg-navy text-white shadow-sm"
+                        : "text-text-secondary hover:bg-white hover:shadow-sm hover:border-surface-border border border-transparent"
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-surface-border disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={14} className="text-text-secondary" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </FadeIn>
     </div>
   );
 }
