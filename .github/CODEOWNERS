@@ -1,0 +1,18 @@
+# KURA360 Code Owners
+# These owners will be requested for review on PRs touching these paths
+
+# Default owners for everything
+* @Leleito
+
+# Security-critical files
+SECURITY.md @Leleito
+src/middleware.ts @Leleito
+src/lib/supabase/ @Leleito
+src/lib/auth/ @Leleito
+next.config.ts @Leleito
+
+# CI/CD
+.github/ @Leleito
+
+# Database schema
+src/types/database.ts @Leleito

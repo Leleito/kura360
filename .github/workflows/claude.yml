@@ -1,0 +1,109 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        if: github.event_name == 'pull_request'
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
+          echo "diff_file=pr_diff.txt" >> $GITHUB_OUTPUT
+
+      - name: Claude Review Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read changed files list
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const changedFiles = files.map(f => `- \`${f.filename}\` (+${f.additions}/-${f.deletions})`).join('\n');
+
+            // Security-sensitive file checks
+            const securityFiles = files.filter(f =>
+              f.filename.includes('middleware') ||
+              f.filename.includes('auth') ||
+              f.filename.includes('supabase') ||
+              f.filename.includes('.env') ||
+              f.filename.includes('next.config') ||
+              f.filename.includes('security')
+            );
+
+            const securityWarning = securityFiles.length > 0
+              ? `\n\n⚠️ **Security-sensitive files changed:**\n${securityFiles.map(f => `- \`${f.filename}\``).join('\n')}\n\n> These files affect authentication, authorization, or security configuration. Please review carefully.`
+              : '';
+
+            // Check for potential issues
+            const warnings = [];
+
+            for (const file of files) {
+              if (file.patch) {
+                if (file.patch.includes('console.log') && !file.filename.includes('test')) {
+                  warnings.push(`🔍 \`${file.filename}\`: Contains \`console.log\` — consider removing before production`);
+                }
+                if (file.patch.includes('TODO') || file.patch.includes('FIXME')) {
+                  warnings.push(`📝 \`${file.filename}\`: Contains TODO/FIXME comments`);
+                }
+                if (file.patch.includes('any') && file.filename.endsWith('.ts')) {
+                  warnings.push(`⚡ \`${file.filename}\`: Uses \`any\` type — consider stronger typing`);
+                }
+              }
+            }
+
+            const warningsSection = warnings.length > 0
+              ? `\n\n### ⚠️ Automated Checks\n${warnings.join('\n')}`
+              : '\n\n✅ No automated warnings detected.';
+
+            const body = `## 🤖 PR Analysis
+
+### Changed Files (${files.length})
+${changedFiles}
+${securityWarning}
+${warningsSection}
+
+### Checklist
+- [ ] Types are correct (no \`any\` usage)
+- [ ] RLS policies updated if schema changed
+- [ ] ECFA compliance impact reviewed
+- [ ] Mobile viewport tested
+- [ ] Error boundaries handle edge cases
+
+---
+*Automated by KURA360 CI/CD Pipeline*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });

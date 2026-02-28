@@ -1,15 +1,22 @@
-name: Preview Deployment
+name: Preview Deploy
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    branches: [master]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,8 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Deploy to Vercel (Preview)
-        id: deploy
         uses: amondnet/vercel-action@v25
+        id: vercel-deploy
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}

@@ -11,6 +11,7 @@ import {
   Heart,
   CheckCircle,
   Settings,
+  HelpCircle,
   Menu,
   X,
   LogOut,
@@ -25,6 +26,7 @@ const navItems = [
   { label: 'Donations', href: '/donations', icon: Heart },
   { label: 'Compliance', href: '/compliance', icon: CheckCircle },
   { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Help', href: '/help', icon: HelpCircle },
 ];
 
 export function Sidebar() {
