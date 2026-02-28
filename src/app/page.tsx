@@ -40,7 +40,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-[#0F2A44]">
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-        <div className="text-center max-w-3xl">
+        <div className="text-center w-full max-w-3xl mx-auto">
           {/* Logo */}
           <div className="flex items-baseline justify-center gap-1.5 mb-6">
             <span className="text-white text-6xl font-black tracking-tight">
