@@ -31,15 +31,6 @@
   --color-text-secondary: #4A5568;
   --color-text-tertiary: #A0AEC0;
 
-  /* Spacing scale */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 20px;
-  --spacing-2xl: 24px;
-  --spacing-3xl: 32px;
-
   /* Border radius */
   --radius-sm: 6px;
   --radius-md: 8px;
