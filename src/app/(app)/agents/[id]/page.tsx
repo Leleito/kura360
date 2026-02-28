@@ -197,7 +197,7 @@ export default function AgentDetailPage({
   const checkinData = getCheckinFrequencyData();
   const [copiedId, setCopiedId] = useState(false);
 
-  const handleCopyId = () => {
+  const _handleCopyId = () => {
     navigator.clipboard.writeText(agent.national_id);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);

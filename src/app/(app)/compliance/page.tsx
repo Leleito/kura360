@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -10,7 +10,6 @@ import {
   FileText,
   Download,
   ChevronRight,
-  TrendingUp,
   Scale,
   Users,
   FolderOpen,
@@ -29,7 +28,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
@@ -37,7 +35,7 @@ import {
   Radar,
 } from 'recharts';
 import { cn, formatKES } from '@/lib/utils';
-import { Button, Badge, StatCard } from '@/components/ui';
+import { Button, StatCard } from '@/components/ui';
 import { AnimatedCounter } from '@/components/premium';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 
@@ -256,21 +254,6 @@ const reports = [
 /* -------------------------------------------------------------------------- */
 
 const statusIcon = { pass: CheckCircle2, warning: AlertTriangle, fail: XCircle };
-
-function severityDot(severity: string) {
-  switch (severity) {
-    case 'fail':
-      return 'bg-red';
-    case 'warning':
-      return 'bg-orange';
-    case 'success':
-      return 'bg-green';
-    case 'info':
-      return 'bg-blue';
-    default:
-      return 'bg-text-tertiary';
-  }
-}
 
 function severityIcon(severity: string) {
   switch (severity) {

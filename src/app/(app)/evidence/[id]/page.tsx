@@ -11,7 +11,6 @@ import {
   MapPin,
   Calendar,
   User,
-  Hash,
   Shield,
   ShieldCheck,
   Clock,
@@ -26,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui';
 import { FadeIn } from '@/components/premium';
-import { cn, formatDate, formatDateShort } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { EvidenceType, EvidenceStatus } from '@/lib/validators/evidence';
 
 // ---------------------------------------------------------------------------

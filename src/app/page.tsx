@@ -7,6 +7,7 @@ import {
   CheckCircle,
   ArrowRight,
 } from "lucide-react";
+import { KuraLogo } from "@/components/ui/kura-logo";
 
 const features = [
   {
@@ -41,14 +42,9 @@ export default function Home() {
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
         <div className="text-center w-full max-w-3xl mx-auto">
-          {/* Logo */}
-          <div className="flex items-baseline justify-center gap-1.5 mb-6">
-            <span className="text-white text-6xl font-black tracking-tight">
-              KURA
-            </span>
-            <span className="text-[#27AE60] text-6xl font-black tracking-tight">
-              360
-            </span>
+          {/* Logo — shield mark + wordmark */}
+          <div className="flex justify-center mb-8">
+            <KuraLogo size="hero" animated={false} className="[&_span]:!text-white" />
           </div>
 
           <p className="text-white/70 text-xl font-light mb-2 tracking-wide">

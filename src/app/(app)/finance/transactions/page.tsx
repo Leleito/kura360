@@ -379,7 +379,7 @@ export default function TransactionsPage() {
 
   const hasActiveFilters = search || categoryFilter || statusFilter || dateFrom || dateTo;
 
-  function SortIndicator({ columnKey }: { columnKey: SortKey }) {
+  const sortIndicator = (columnKey: SortKey) => {
     const isActive = sortKey === columnKey;
     return (
       <svg
@@ -395,7 +395,7 @@ export default function TransactionsPage() {
         <path strokeLinecap="round" strokeLinejoin="round" d="M7 16l5 5 5-5M7 8l5-5 5 5" />
       </svg>
     );
-  }
+  };
 
   /* ------------------------------------------------------------------ */
   /*  Render                                                            */
@@ -675,7 +675,7 @@ export default function TransactionsPage() {
                   >
                     <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
                       Date
-                      <SortIndicator columnKey="date" />
+                      {sortIndicator("date")}
                     </span>
                   </th>
                   <th
@@ -684,7 +684,7 @@ export default function TransactionsPage() {
                   >
                     <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
                       Description
-                      <SortIndicator columnKey="description" />
+                      {sortIndicator("description")}
                     </span>
                   </th>
                   <th
@@ -693,7 +693,7 @@ export default function TransactionsPage() {
                   >
                     <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
                       Category
-                      <SortIndicator columnKey="category" />
+                      {sortIndicator("category")}
                     </span>
                   </th>
                   <th
@@ -702,7 +702,7 @@ export default function TransactionsPage() {
                   >
                     <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
                       Amount
-                      <SortIndicator columnKey="amount" />
+                      {sortIndicator("amount")}
                     </span>
                   </th>
                   <th className="px-3 py-3.5 text-center">
@@ -716,7 +716,7 @@ export default function TransactionsPage() {
                   >
                     <span className="inline-flex items-center text-[10px] font-semibold text-text-tertiary uppercase tracking-wider group-hover:text-text-secondary transition-colors">
                       Status
-                      <SortIndicator columnKey="status" />
+                      {sortIndicator("status")}
                     </span>
                   </th>
                   <th className="px-3 py-3.5 text-left">

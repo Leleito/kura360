@@ -2,33 +2,22 @@
 
 import { motion } from 'framer-motion';
 
-interface KuraLogoProps {
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'hero';
-  variant?: 'full' | 'mark' | 'wordmark';
-  animated?: boolean;
-  className?: string;
-}
+/* ------------------------------------------------------------------ */
+/*  Shared sub-components (defined outside render to satisfy React     */
+/*  Compiler's static-components rule)                                 */
+/* ------------------------------------------------------------------ */
 
-export function KuraLogo({
-  size = 'md',
-  variant = 'full',
-  animated = true,
-  className = '',
-}: KuraLogoProps) {
-  const sizes = {
-    sm: { logo: 28, text: 18, sub: 10 },
-    md: { logo: 36, text: 24, sub: 12 },
-    lg: { logo: 48, text: 32, sub: 14 },
-    xl: { logo: 64, text: 42, sub: 16 },
-    hero: { logo: 96, text: 64, sub: 20 },
-  };
-
-  const s = sizes[size];
-
-  const LogoMark = () => (
+function LogoMarkSvg({
+  logoSize,
+  animated,
+}: {
+  logoSize: number;
+  animated: boolean;
+}) {
+  return (
     <motion.svg
-      width={s.logo}
-      height={s.logo}
+      width={logoSize}
+      height={logoSize}
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -96,8 +85,22 @@ export function KuraLogo({
       </defs>
     </motion.svg>
   );
+}
 
-  const Wordmark = () => (
+function WordmarkText({
+  textSize,
+  subSize,
+  color,
+  subColor,
+  animated,
+}: {
+  textSize: number;
+  subSize: number;
+  color: string;
+  subColor: string;
+  animated: boolean;
+}) {
+  return (
     <motion.div
       className="flex items-baseline gap-0.5"
       initial={animated ? { x: -10, opacity: 0 } : undefined}
@@ -107,9 +110,9 @@ export function KuraLogo({
       <span
         className="font-heading"
         style={{
-          fontSize: s.text,
+          fontSize: textSize,
           fontWeight: 700,
-          color: '#0F2A44',
+          color,
           letterSpacing: '-0.02em',
           lineHeight: 1,
         }}
@@ -119,9 +122,9 @@ export function KuraLogo({
       <span
         className="font-heading"
         style={{
-          fontSize: s.sub,
+          fontSize: subSize,
           fontWeight: 600,
-          color: '#27AE60',
+          color: subColor,
           letterSpacing: '0.05em',
           lineHeight: 1,
           position: 'relative',
@@ -132,14 +135,60 @@ export function KuraLogo({
       </span>
     </motion.div>
   );
+}
 
-  if (variant === 'mark') return <LogoMark />;
-  if (variant === 'wordmark') return <Wordmark />;
+/* ------------------------------------------------------------------ */
+/*  Public components                                                  */
+/* ------------------------------------------------------------------ */
+
+interface KuraLogoProps {
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'hero';
+  variant?: 'full' | 'mark' | 'wordmark';
+  animated?: boolean;
+  className?: string;
+}
+
+export function KuraLogo({
+  size = 'md',
+  variant = 'full',
+  animated = true,
+  className = '',
+}: KuraLogoProps) {
+  const sizes = {
+    sm: { logo: 28, text: 18, sub: 10 },
+    md: { logo: 36, text: 24, sub: 12 },
+    lg: { logo: 48, text: 32, sub: 14 },
+    xl: { logo: 64, text: 42, sub: 16 },
+    hero: { logo: 96, text: 64, sub: 20 },
+  };
+
+  const s = sizes[size];
+
+  if (variant === 'mark') {
+    return <LogoMarkSvg logoSize={s.logo} animated={animated} />;
+  }
+  if (variant === 'wordmark') {
+    return (
+      <WordmarkText
+        textSize={s.text}
+        subSize={s.sub}
+        color="#0F2A44"
+        subColor="#27AE60"
+        animated={animated}
+      />
+    );
+  }
 
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
-      <LogoMark />
-      <Wordmark />
+      <LogoMarkSvg logoSize={s.logo} animated={animated} />
+      <WordmarkText
+        textSize={s.text}
+        subSize={s.sub}
+        color="#0F2A44"
+        subColor="#27AE60"
+        animated={animated}
+      />
     </div>
   );
 }

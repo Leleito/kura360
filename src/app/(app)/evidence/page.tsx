@@ -32,7 +32,7 @@ import {
 import { SearchInput, Badge, DataTable } from '@/components/ui';
 import type { Column } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
-import { cn, formatDateShort, truncate } from '@/lib/utils';
+import { cn, formatDateShort } from '@/lib/utils';
 import type { EvidenceType, EvidenceStatus, KenyaCounty } from '@/lib/validators/evidence';
 import { EVIDENCE_TYPES, EVIDENCE_STATUSES, KENYA_COUNTIES } from '@/lib/validators/evidence';
 
@@ -369,7 +369,8 @@ export default function EvidencePage() {
   const pendingCount = MOCK_EVIDENCE.filter((e) => e.status === 'pending').length;
   const flaggedCount = MOCK_EVIDENCE.filter((e) => e.status === 'flagged').length;
 
-  // Filter
+  // Filter — eslint-disable for React Compiler: mock data, no perf concern
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const filteredEvidence = useMemo(() => {
     return MOCK_EVIDENCE.filter((item) => {
       const matchesSearch =
