@@ -87,7 +87,7 @@ export function Sidebar() {
           </button>
         </form>
         <div className="px-3 text-xs text-white/30">
-          Sysmera Limited
+          Laitigo Labs
         </div>
       </div>
     </>

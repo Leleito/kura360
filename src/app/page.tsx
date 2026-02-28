@@ -109,7 +109,7 @@ export default function Home() {
       <footer className="border-t border-white/5 px-6 py-6">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-white/30 text-xs">
-            <span>Sysmera Limited</span>
+            <span>Laitigo Labs</span>
             <span className="hidden sm:inline">&middot;</span>
             <span>v0.1.0</span>
           </div>
