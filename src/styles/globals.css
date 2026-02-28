@@ -41,6 +41,7 @@
 
   /* Typography */
   --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-heading: var(--font-space-grotesk, 'Space Grotesk'), -apple-system, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
@@ -159,4 +160,24 @@ html {
 ::selection {
   background: rgba(46, 117, 182, 0.2);
   color: var(--color-navy);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Heading font utility */
+.font-heading {
+  font-family: var(--font-heading);
 }
