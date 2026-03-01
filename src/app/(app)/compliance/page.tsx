@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -35,6 +35,9 @@ import {
   Radar,
 } from 'recharts';
 import { cn, formatKES } from '@/lib/utils';
+import { useCampaign } from '@/lib/campaign-context';
+import { getComplianceStatus } from '@/lib/actions/compliance';
+import type { ComplianceAlert } from '@/lib/actions/compliance';
 import { Button, StatCard } from '@/components/ui';
 import { AnimatedCounter } from '@/components/premium';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
@@ -156,7 +159,7 @@ function getCategoryScore(category: string): number {
   return Math.round((passed / items.length) * 100);
 }
 
-const radarData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
+const _radarData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
   (cat) => ({
     category: cat,
     score: getCategoryScore(cat),
@@ -168,7 +171,7 @@ const radarData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reportin
 /*  Category Bar Chart Data                                                   */
 /* -------------------------------------------------------------------------- */
 
-const barChartData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
+const _barChartData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
   (cat) => {
     const items = complianceChecks.filter((c) => c.category === cat);
     const pass = items.filter((c) => c.status === 'pass').length;
@@ -356,24 +359,202 @@ function ComplianceScoreRing({ score }: { score: number }) {
 /*  Page Component                                                            */
 /* -------------------------------------------------------------------------- */
 
+// ---------------------------------------------------------------------------
+// Map server ComplianceAlert to the UI alert format
+// ---------------------------------------------------------------------------
+
+function mapServerAlertToUI(alert: ComplianceAlert) {
+  const severityMap: Record<string, 'fail' | 'warning' | 'info' | 'success'> = {
+    critical: 'fail',
+    warning: 'warning',
+    info: 'info',
+  };
+  return {
+    id: alert.id,
+    message: alert.message,
+    severity: severityMap[alert.level] ?? ('info' as const),
+    time: new Date(alert.timestamp).toLocaleString(),
+    resolved: alert.resolved,
+  };
+}
+
 export default function CompliancePage() {
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
   const [filterCategory, setFilterCategory] = useState('all');
+  const [loading, setLoading] = useState(false);
 
-  const passCount = complianceChecks.filter((c) => c.status === 'pass').length;
-  const warnCount = complianceChecks.filter((c) => c.status === 'warning').length;
-  const failCount = complianceChecks.filter((c) => c.status === 'fail').length;
-  const overallScore = Math.round((passCount / complianceChecks.length) * 100);
+  // Compliance data state (defaults to mock data values)
+  const [activeComplianceChecks, setActiveComplianceChecks] = useState(complianceChecks);
+  const [activeAlerts, setActiveAlerts] = useState(recentAlerts);
+  const [spendingLimit, setSpendingLimit] = useState(SPENDING_LIMIT);
+  const [totalSpent, setTotalSpent] = useState(TOTAL_SPENT);
+  const [totalDonations, _setTotalDonations] = useState(TOTAL_DONATIONS);
 
-  const categories = ['all', ...Array.from(new Set(complianceChecks.map((c) => c.category)))];
+  // ---------------------------------------------------------------------------
+  // Data fetching
+  // ---------------------------------------------------------------------------
+
+  const refreshCompliance = useCallback(async () => {
+    if (!activeCampaignId) return;
+    setLoading(true);
+    try {
+      const result = await getComplianceStatus(activeCampaignId);
+      if (!result.error) {
+        // Map server compliance data to the checks format
+        const serverChecks: typeof complianceChecks = [];
+
+        // Map category spending to checks
+        for (const cat of result.categorySpending) {
+          const status = cat.percentage > 100 ? 'fail' : cat.percentage > 80 ? 'warning' : 'pass';
+          serverChecks.push({
+            id: `cat-${cat.category}`,
+            label: `${cat.category} spending`,
+            description: `${cat.category} at ${cat.percentage.toFixed(0)}% of KES ${formatKES(cat.limit)} limit`,
+            status: status as 'pass' | 'warning' | 'fail',
+            category: 'Financial',
+          });
+        }
+
+        // Map donation compliance to checks
+        if (result.donationCompliance.anonymousOverThreshold === 0) {
+          serverChecks.push({
+            id: 'anon-ok',
+            label: 'Anonymous donations compliant',
+            description: 'No anonymous donations exceed ECFA threshold',
+            status: 'pass',
+            category: 'Donor',
+          });
+        } else {
+          serverChecks.push({
+            id: 'anon-fail',
+            label: 'Anonymous donation violations',
+            description: `${result.donationCompliance.anonymousOverThreshold} anonymous donation(s) exceed threshold`,
+            status: 'fail',
+            category: 'Donor',
+          });
+        }
+
+        if (result.donationCompliance.singleSourceViolations === 0) {
+          serverChecks.push({
+            id: 'single-source-ok',
+            label: 'No single-source violations',
+            description: 'All donors within 20% single-source cap',
+            status: 'pass',
+            category: 'Donor',
+          });
+        } else {
+          serverChecks.push({
+            id: 'single-source-fail',
+            label: 'Single-source cap exceeded',
+            description: `${result.donationCompliance.singleSourceViolations} donor(s) exceed 20% single-source cap`,
+            status: 'fail',
+            category: 'Donor',
+          });
+        }
+
+        if (result.donationCompliance.kycPending === 0) {
+          serverChecks.push({
+            id: 'kyc-ok',
+            label: 'Donor KYC verification complete',
+            description: 'All donors have completed KYC verification',
+            status: 'pass',
+            category: 'Donor',
+          });
+        } else {
+          serverChecks.push({
+            id: 'kyc-pending',
+            label: 'Donor KYC verification pending',
+            description: `${result.donationCompliance.kycPending} donation(s) pending KYC verification`,
+            status: 'warning',
+            category: 'Donor',
+          });
+        }
+
+        // Only update if we got real server data (non-empty checks)
+        if (serverChecks.length > 0) {
+          setActiveComplianceChecks(serverChecks);
+        }
+
+        // Map server alerts
+        if (result.alerts.length > 0) {
+          setActiveAlerts(result.alerts.map(mapServerAlertToUI));
+        }
+
+        // Update spending data from category spending
+        const serverTotalSpent = result.categorySpending.reduce((sum, c) => sum + c.spent, 0);
+        if (serverTotalSpent > 0 || result.categorySpending.length > 0) {
+          setTotalSpent(serverTotalSpent);
+          // Use the campaign's spending limit
+          const campaignLimit = campaign?.spending_limit_kes ?? SPENDING_LIMIT;
+          setSpendingLimit(campaignLimit);
+        }
+      }
+    } catch {
+      // On error, keep mock data
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCampaignId, campaign?.spending_limit_kes]);
+
+  useEffect(() => {
+    refreshCompliance();
+  }, [refreshCompliance]);
+
+  // ---------------------------------------------------------------------------
+  // Derived data (now based on active state instead of hardcoded constants)
+  // ---------------------------------------------------------------------------
+
+  const passCount = activeComplianceChecks.filter((c) => c.status === 'pass').length;
+  const warnCount = activeComplianceChecks.filter((c) => c.status === 'warning').length;
+  const failCount = activeComplianceChecks.filter((c) => c.status === 'fail').length;
+  const overallScore = activeComplianceChecks.length > 0
+    ? Math.round((passCount / activeComplianceChecks.length) * 100)
+    : 0;
+
+  const categories = ['all', ...Array.from(new Set(activeComplianceChecks.map((c) => c.category)))];
   const filtered =
     filterCategory === 'all'
-      ? complianceChecks
-      : complianceChecks.filter((c) => c.category === filterCategory);
+      ? activeComplianceChecks
+      : activeComplianceChecks.filter((c) => c.category === filterCategory);
 
-  const spendingPercent = Math.round((TOTAL_SPENT / SPENDING_LIMIT) * 100);
+  const spendingPercent = spendingLimit > 0 ? Math.round((totalSpent / spendingLimit) * 100) : 0;
+
+  // Recompute radar data based on current checks
+  const activeRadarData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
+    (cat) => {
+      const items = activeComplianceChecks.filter((c) => c.category === cat);
+      const score = items.length > 0
+        ? Math.round((items.filter((c) => c.status === 'pass').length / items.length) * 100)
+        : 0;
+      return { category: cat, score, fullMark: 100 };
+    }
+  );
+
+  // Recompute bar chart data based on current checks
+  const activeBarChartData = ['Financial', 'Donor', 'Documentation', 'Personnel', 'Reporting'].map(
+    (cat) => {
+      const items = activeComplianceChecks.filter((c) => c.category === cat);
+      const pass = items.filter((c) => c.status === 'pass').length;
+      const warn = items.filter((c) => c.status === 'warning').length;
+      const fail = items.filter((c) => c.status === 'fail').length;
+      return { category: cat, Pass: pass, Warning: warn, Fail: fail };
+    }
+  );
 
   return (
     <div>
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-40 bg-white/60 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 border-3 border-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-secondary font-medium">Loading compliance data...</p>
+          </div>
+        </div>
+      )}
+
       {/* ---- Header ---- */}
       <FadeIn direction="down" duration={0.35}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -415,7 +596,7 @@ export default function CompliancePage() {
                   className="text-xl font-extrabold"
                 />
               }
-              sub={`of ${complianceChecks.length} total checks`}
+              sub={`of ${activeComplianceChecks.length} total checks`}
               variant="green"
               icon={<CheckCircle2 className="h-4 w-4" />}
             />
@@ -450,7 +631,7 @@ export default function CompliancePage() {
             <h2 className="text-sm font-bold text-navy mb-1">By Category</h2>
             <p className="text-[10px] text-text-tertiary mb-2">Compliance score breakdown</p>
             <ResponsiveContainer width="100%" height={200}>
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={activeRadarData}>
                 <PolarGrid stroke="#E2E8F0" />
                 <PolarAngleAxis
                   dataKey="category"
@@ -479,7 +660,7 @@ export default function CompliancePage() {
             <h2 className="text-sm font-bold text-navy mb-1">Check Results</h2>
             <p className="text-[10px] text-text-tertiary mb-2">By category breakdown</p>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barChartData} barSize={20}>
+              <BarChart data={activeBarChartData} barSize={20}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
                 <XAxis
                   dataKey="category"
@@ -514,18 +695,18 @@ export default function CompliancePage() {
               <div>
                 <p className="text-sm font-bold text-navy">ECFA Spending Limit</p>
                 <p className="text-xs text-text-tertiary">
-                  {formatKES(TOTAL_SPENT)} of {formatKES(SPENDING_LIMIT)} utilized
+                  {formatKES(totalSpent)} of {formatKES(spendingLimit)} utilized
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-xs text-text-tertiary">Remaining</p>
-                <p className="text-sm font-bold text-navy">{formatKES(SPENDING_LIMIT - TOTAL_SPENT)}</p>
+                <p className="text-sm font-bold text-navy">{formatKES(spendingLimit - totalSpent)}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-text-tertiary">Total Donations</p>
-                <p className="text-sm font-bold text-green">{formatKES(TOTAL_DONATIONS)}</p>
+                <p className="text-sm font-bold text-green">{formatKES(totalDonations)}</p>
               </div>
             </div>
           </div>
@@ -559,7 +740,7 @@ export default function CompliancePage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-navy">Compliance Checks</h2>
               <span className="text-xs text-text-tertiary">
-                {filtered.length} check{filtered.length !== 1 ? 's' : ''}
+                {filtered.length} check{filtered.length !== 1 ? 's' : ''}{loading ? ' (loading...)' : ''}
               </span>
             </div>
             {/* Category filter pills */}
@@ -646,11 +827,11 @@ export default function CompliancePage() {
                 Recent Alerts
               </h2>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-pale text-orange">
-                {recentAlerts.filter((a) => !a.resolved).length} active
+                {activeAlerts.filter((a) => !a.resolved).length} active
               </span>
             </div>
             <div className="divide-y divide-surface-border-light">
-              {recentAlerts.map((alert) => (
+              {activeAlerts.map((alert) => (
                 <div key={alert.id} className="px-5 py-3 flex items-start gap-3">
                   <div className="mt-0.5 shrink-0">
                     {severityIcon(alert.severity)}

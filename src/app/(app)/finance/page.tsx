@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Wallet,
@@ -40,6 +40,9 @@ import {
   type ECFACategory,
   type TransactionStatus,
 } from "@/lib/validators/finance";
+import { useCampaign } from "@/lib/campaign-context";
+import { getFinanceSummary, getTransactions, type FinanceSummary } from "@/lib/actions/transactions";
+import { exportTransactionsCSV } from "@/lib/export";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -69,7 +72,7 @@ const CATEGORY_COLORS: Record<ECFACategory, string> = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*  Mock recent transactions                                                  */
+/*  Mock data defaults (shown when no campaign is selected)                    */
 /* -------------------------------------------------------------------------- */
 
 const MOCK_TRANSACTIONS: Transaction[] = [
@@ -249,20 +252,98 @@ function CustomAreaTooltip({ active, payload }: { active?: boolean; payload?: Ar
 /* -------------------------------------------------------------------------- */
 
 export default function FinancePage() {
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
+  // ── State for real data ──
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [allRawTransactions, setAllRawTransactions] = useState<Array<{
+    id: string;
+    transaction_date: string;
+    description: string;
+    category: string;
+    amount_kes: number;
+    status: string;
+    vendor_name?: string | null;
+    reference?: string | null;
+    receipt_url?: string | null;
+    type: string;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeCampaignId) return;
+    const campaignId = activeCampaignId;
+
+    async function fetchFinance() {
+      setLoading(true);
+      try {
+        const [finance, txnResult] = await Promise.all([
+          getFinanceSummary(campaignId),
+          getTransactions(campaignId, { pageSize: 50 }),
+        ]);
+        if (!finance.error) setFinanceSummary(finance);
+
+        if (!txnResult.error && txnResult.data.length > 0) {
+          setAllRawTransactions(txnResult.data);
+
+          const mapped: Transaction[] = txnResult.data.slice(0, 8).map((t) => ({
+            id: t.reference ?? t.id.slice(0, 8),
+            date: t.transaction_date,
+            description: t.description,
+            category: t.category as ECFACategory,
+            amount: t.amount_kes,
+            receipt_url: t.receipt_url,
+            status: t.status as TransactionStatus,
+          }));
+          setTransactions(mapped);
+        }
+      } catch (err) {
+        console.error("[Finance] Failed to fetch data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchFinance();
+  }, [activeCampaignId]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
   /* ---- Derived data ---- */
-  const totalSpent = useMemo(
-    () =>
-      MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce((sum, t) => sum + t.amount, 0),
-    []
-  );
-  const budgetRemaining = ECFA_SPENDING_LIMIT - totalSpent;
-  const pendingApprovals = MOCK_TRANSACTIONS.filter((t) => t.status === "pending").length;
-  const utilPct = percentage(totalSpent, ECFA_SPENDING_LIMIT);
+  const spendingLimit = financeSummary?.spendingLimit ?? ECFA_SPENDING_LIMIT;
+
+  const totalSpent = useMemo(() => {
+    if (financeSummary) return financeSummary.totalSpent;
+    return transactions.filter((t) => t.status === "approved").reduce((sum, t) => sum + t.amount, 0);
+  }, [financeSummary, transactions]);
+
+  const budgetRemaining = spendingLimit - totalSpent;
+  const pendingApprovals = transactions.filter((t) => t.status === "pending").length;
+  const utilPct = percentage(totalSpent, spendingLimit);
 
   /* Spending per category (approved only) */
   const categoryData = useMemo(() => {
+    if (financeSummary?.byCategory && financeSummary.byCategory.length > 0) {
+      return ECFA_CATEGORIES.map((cat) => {
+        const found = financeSummary.byCategory.find((c) => c.category === cat);
+        return {
+          category: cat,
+          spent: found?.total ?? 0,
+          budget: CATEGORY_BUDGETS[cat],
+          fill: CATEGORY_COLORS[cat],
+        };
+      });
+    }
+
     const map: Partial<Record<ECFACategory, number>> = {};
-    MOCK_TRANSACTIONS.filter((t) => t.status === "approved").forEach((t) => {
+    transactions.filter((t) => t.status === "approved").forEach((t) => {
       map[t.category] = (map[t.category] || 0) + t.amount;
     });
     return ECFA_CATEGORIES.map((cat) => ({
@@ -271,20 +352,58 @@ export default function FinancePage() {
       budget: CATEGORY_BUDGETS[cat],
       fill: CATEGORY_COLORS[cat],
     }));
-  }, []);
+  }, [financeSummary, transactions]);
 
   /* Donut data */
   const donutData = [
     { name: "Spent", value: totalSpent, color: "#2E75B6" },
-    { name: "Remaining", value: budgetRemaining, color: "#E2E8F0" },
+    { name: "Remaining", value: Math.max(0, budgetRemaining), color: "#E2E8F0" },
   ];
+
+  /* ---- Action handlers ---- */
+  function handleExportCSV() {
+    if (allRawTransactions.length > 0) {
+      exportTransactionsCSV(allRawTransactions);
+      setToastMessage("CSV exported successfully!");
+    } else {
+      setToastMessage("No transaction data to export.");
+    }
+  }
+
+  function handleGenerateReport() {
+    setToastMessage("Report generation coming soon!");
+  }
 
   /* ------------------------------------------------------------------ */
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-14 bg-surface-border-light rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-32 bg-surface-border-light rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-80 bg-surface-border-light rounded-2xl animate-pulse" />
+          <div className="h-80 bg-surface-border-light rounded-2xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Toast notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-navy text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
+          {toastMessage}
+        </div>
+      )}
+
       {/* ---- Page header ---- */}
       <FadeIn direction="none" duration={0.3}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -293,15 +412,21 @@ export default function FinancePage() {
               Campaign Finance
             </h1>
             <p className="text-xs text-text-tertiary mt-1">
-              ECFA compliant spending limit: {formatKES(ECFA_SPENDING_LIMIT)}
+              ECFA compliant spending limit: {formatKES(spendingLimit)}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+            <button
+              onClick={handleGenerateReport}
+              className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm"
+            >
               <FileBarChart size={15} />
               Generate Report
             </button>
-            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm"
+            >
               <Download size={15} />
               Export CSV
             </button>
@@ -329,7 +454,7 @@ export default function FinancePage() {
               </div>
             </div>
             <AnimatedCounter
-              value={ECFA_SPENDING_LIMIT}
+              value={spendingLimit}
               formatter={(v) => formatKES(Math.round(v))}
               className="text-2xl font-extrabold text-navy tabular-nums block"
             />
@@ -369,12 +494,12 @@ export default function FinancePage() {
               </div>
             </div>
             <AnimatedCounter
-              value={budgetRemaining}
+              value={Math.max(0, budgetRemaining)}
               formatter={(v) => formatKES(Math.round(v))}
               className="text-2xl font-extrabold text-navy tabular-nums block"
             />
             <p className="text-[10px] text-text-tertiary mt-1.5">
-              {percentage(budgetRemaining, ECFA_SPENDING_LIMIT)}% available
+              {percentage(Math.max(0, budgetRemaining), spendingLimit)}% available
             </p>
           </div>
         </FadeIn>
@@ -539,7 +664,7 @@ export default function FinancePage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-surface-border inline-block" />
                   <span className="text-[10px] font-semibold text-text-secondary">Remaining</span>
                 </div>
-                <p className="text-xs font-bold text-navy">{formatKES(budgetRemaining)}</p>
+                <p className="text-xs font-bold text-navy">{formatKES(Math.max(0, budgetRemaining))}</p>
               </div>
             </div>
           </div>
@@ -600,7 +725,7 @@ export default function FinancePage() {
           <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
             <div>
               <h2 className="text-sm font-bold text-navy">Recent Transactions</h2>
-              <p className="text-[10px] text-text-tertiary mt-0.5">Latest {MOCK_TRANSACTIONS.length} expenditure records</p>
+              <p className="text-[10px] text-text-tertiary mt-0.5">Latest {transactions.length} expenditure records</p>
             </div>
             <Link
               href="/finance/transactions"
@@ -624,7 +749,7 @@ export default function FinancePage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_TRANSACTIONS.map((t) => {
+                {transactions.map((t) => {
                   const badge = statusBadge(t.status);
                   return (
                     <tr
@@ -676,7 +801,7 @@ export default function FinancePage() {
           {/* Table footer */}
           <div className="flex items-center justify-between px-5 py-3 bg-surface-bg/30 border-t border-surface-border">
             <p className="text-[10px] text-text-tertiary">
-              Showing {MOCK_TRANSACTIONS.length} most recent transactions
+              Showing {transactions.length} most recent transactions
             </p>
             <Link
               href="/finance/transactions"

@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -22,10 +22,15 @@ import {
   Copy,
   Link2,
   HardDrive,
+  Loader2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui';
 import { FadeIn } from '@/components/premium';
 import { cn, formatDate } from '@/lib/utils';
+import { useCampaign } from '@/lib/campaign-context';
+import { getEvidenceById } from '@/lib/actions/evidence';
+import { getAuditLog } from '@/lib/actions/audit';
+import type { Tables } from '@/types/database';
 import type { EvidenceType, EvidenceStatus } from '@/lib/validators/evidence';
 
 // ---------------------------------------------------------------------------
@@ -271,6 +276,56 @@ const MOCK_RELATED: Record<string, RelatedItem[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// Helpers – map DB row to UI types
+// ---------------------------------------------------------------------------
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return 'Unknown';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+const TYPE_THUMBNAIL_COLORS: Record<string, string> = {
+  photo: 'bg-[#2E75B6]',
+  video: 'bg-[#805AD5]',
+  document: 'bg-[#1D6B3F]',
+  audio: 'bg-[#ED8936]',
+};
+
+function mapDbToEvidenceItem(row: Tables<'evidence_items'>): EvidenceItem {
+  return {
+    id: row.id,
+    title: row.title,
+    type: row.type as EvidenceType,
+    county: '', // not stored in DB – will show as empty
+    description: row.description ?? '',
+    file_url: row.file_url,
+    captured_by: row.agent_id ?? '',
+    sha256_hash: row.sha256_hash,
+    status: row.verification_status as EvidenceStatus,
+    created_at: row.captured_at ?? row.created_at,
+    thumbnail_color: TYPE_THUMBNAIL_COLORS[row.type] ?? 'bg-[#2E75B6]',
+    file_size: formatBytes(row.file_size_bytes),
+    location:
+      row.gps_lat != null && row.gps_lon != null
+        ? { lat: row.gps_lat, lng: row.gps_lon }
+        : undefined,
+  };
+}
+
+function mapAuditToCustody(logs: Tables<'audit_log'>[]): CustodyEvent[] {
+  return logs.map((log) => ({
+    id: log.id,
+    action: log.action,
+    actor: log.user_id,
+    timestamp: log.created_at,
+    detail: `${log.action} on ${log.table_name}${log.record_id ? ` (${log.record_id})` : ''}`,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Chain of Custody Timeline
 // ---------------------------------------------------------------------------
 
@@ -317,8 +372,67 @@ export default function EvidenceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const item = MOCK_EVIDENCE[id];
+  const { campaign } = useCampaign();
   const [hashCopied, setHashCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [item, setItem] = useState<EvidenceItem | null>(MOCK_EVIDENCE[id] ?? null);
+  const [custodyEvents, setCustodyEvents] = useState<CustodyEvent[]>(
+    MOCK_CUSTODY_EVENTS[id] ?? []
+  );
+
+  // Fetch real evidence data from Supabase
+  const fetchEvidence = useCallback(async () => {
+    // For mock IDs, use the hardcoded data directly
+    if (MOCK_EVIDENCE[id]) {
+      setItem(MOCK_EVIDENCE[id]);
+      setCustodyEvents(
+        MOCK_CUSTODY_EVENTS[id] ?? [
+          { id: 'cust-default-1', action: 'Uploaded', actor: MOCK_EVIDENCE[id].captured_by, timestamp: MOCK_EVIDENCE[id].created_at, detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
+          { id: 'cust-default-2', action: 'Hash Generated', actor: 'System', timestamp: MOCK_EVIDENCE[id].created_at, detail: 'Automated SHA-256 integrity hash computed and stored' },
+        ]
+      );
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch evidence item from DB
+      const { data: dbItem, error } = await getEvidenceById(id);
+      if (error || !dbItem) {
+        setItem(null);
+        setLoading(false);
+        return;
+      }
+
+      setItem(mapDbToEvidenceItem(dbItem));
+
+      // Fetch chain of custody from audit_log
+      if (campaign?.id) {
+        const { data: auditLogs } = await getAuditLog(campaign.id, {
+          tableName: 'evidence_items',
+          recordId: id,
+        });
+        if (auditLogs && auditLogs.length > 0) {
+          setCustodyEvents(mapAuditToCustody(auditLogs));
+        } else {
+          // Default custody events for real items with no audit trail yet
+          setCustodyEvents([
+            { id: 'cust-default-1', action: 'Uploaded', actor: dbItem.agent_id ?? 'Unknown', timestamp: dbItem.created_at, detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
+            { id: 'cust-default-2', action: 'Hash Generated', actor: 'System', timestamp: dbItem.created_at, detail: 'Automated SHA-256 integrity hash computed and stored' },
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error('[EvidenceDetail] Failed to fetch evidence:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, campaign?.id]);
+
+  useEffect(() => {
+    fetchEvidence();
+  }, [fetchEvidence]);
 
   const handleCopyHash = () => {
     if (!item) return;
@@ -326,6 +440,16 @@ export default function EvidenceDetailPage({
     setHashCopied(true);
     setTimeout(() => setHashCopied(false), 2000);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-blue animate-spin mb-4" />
+        <p className="text-sm text-text-secondary font-medium">Loading evidence...</p>
+      </div>
+    );
+  }
 
   // 404 fallback
   if (!item) {
@@ -351,10 +475,6 @@ export default function EvidenceDetailPage({
   const statusConfig = STATUS_CONFIG[item.status];
   const StatusIcon = statusConfig.Icon;
   const typeColor = TYPE_COLORS[item.type];
-  const custodyEvents = MOCK_CUSTODY_EVENTS[id] ?? [
-    { id: 'cust-default-1', action: 'Uploaded', actor: item.captured_by, timestamp: item.created_at, detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
-    { id: 'cust-default-2', action: 'Hash Generated', actor: 'System', timestamp: item.created_at, detail: 'Automated SHA-256 integrity hash computed and stored' },
-  ];
   const relatedItems = MOCK_RELATED[id] ?? [];
 
   return (
@@ -477,8 +597,8 @@ export default function EvidenceDetailPage({
               <div className="space-y-3.5">
                 {[
                   { icon: FileText, label: 'Type', value: TYPE_LABELS[item.type] },
-                  { icon: MapPin, label: 'County', value: item.county },
-                  { icon: User, label: 'Captured By', value: item.captured_by },
+                  ...(item.county ? [{ icon: MapPin, label: 'County', value: item.county }] : []),
+                  ...(item.captured_by ? [{ icon: User, label: 'Captured By', value: item.captured_by }] : []),
                   { icon: Calendar, label: 'Captured Date', value: formatDate(item.created_at) },
                   { icon: HardDrive, label: 'File Size', value: item.file_size },
                 ].map((meta) => (

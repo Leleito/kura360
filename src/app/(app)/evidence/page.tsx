@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Shield,
@@ -33,8 +33,11 @@ import { SearchInput, Badge, DataTable } from '@/components/ui';
 import type { Column } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatDateShort } from '@/lib/utils';
+import { useCampaign } from '@/lib/campaign-context';
+import { getEvidenceItems } from '@/lib/actions/evidence';
 import type { EvidenceType, EvidenceStatus, KenyaCounty } from '@/lib/validators/evidence';
 import { EVIDENCE_TYPES, EVIDENCE_STATUSES, KENYA_COUNTIES } from '@/lib/validators/evidence';
+import type { Tables } from '@/types/database';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -227,6 +230,38 @@ const MOCK_EVIDENCE: EvidenceItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Map DB evidence row to the UI EvidenceItem interface
+// ---------------------------------------------------------------------------
+
+const THUMBNAIL_COLORS: Record<EvidenceType, string> = {
+  photo: 'bg-[#2E75B6]',
+  video: 'bg-[#805AD5]',
+  document: 'bg-[#1D6B3F]',
+  audio: 'bg-[#ED8936]',
+};
+
+function mapDbEvidenceToUI(dbItem: Tables<'evidence_items'>): EvidenceItem {
+  const evidenceType = (dbItem.type as EvidenceType) || 'document';
+  const evidenceStatus = (dbItem.verification_status as EvidenceStatus) || 'pending';
+  return {
+    id: dbItem.id,
+    title: dbItem.title,
+    type: evidenceType,
+    county: '' as KenyaCounty, // DB does not store county directly; show GPS-based or empty
+    description: dbItem.description ?? '',
+    file_url: dbItem.file_url,
+    captured_by: '', // DB does not have captured_by; could be enriched from agent_id later
+    sha256_hash: dbItem.sha256_hash,
+    status: evidenceStatus,
+    created_at: dbItem.captured_at ?? dbItem.created_at,
+    thumbnail_color:
+      evidenceStatus === 'flagged'
+        ? 'bg-[#E53E3E]'
+        : THUMBNAIL_COLORS[evidenceType] ?? 'bg-[#2E75B6]',
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Upload Modal
 // ---------------------------------------------------------------------------
 
@@ -243,6 +278,7 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <X className="w-4 h-4" />
           </button>
         </div>
+        {/* TODO: Wire form submission to createEvidenceItem() server action with file upload in Phase 4 */}
         <form className="p-5 space-y-4" onSubmit={(e) => e.preventDefault()}>
           <div>
             <label className="block text-xs font-semibold text-text-secondary mb-1">Title <span className="text-[#E53E3E]">*</span></label>
@@ -356,6 +392,13 @@ function GalleryCard({ item }: { item: EvidenceItem }) {
 // ---------------------------------------------------------------------------
 
 export default function EvidencePage() {
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
+  // Evidence data (falls back to mock)
+  const [evidence, setEvidence] = useState<EvidenceItem[]>(MOCK_EVIDENCE);
+  const [loading, setLoading] = useState(false);
+
   const [viewMode, setViewMode] = useState<'gallery' | 'list'>('gallery');
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -363,16 +406,39 @@ export default function EvidencePage() {
   const [countyFilter, setCountyFilter] = useState<string>('');
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  // Counts
-  const totalCount = MOCK_EVIDENCE.length;
-  const verifiedCount = MOCK_EVIDENCE.filter((e) => e.status === 'verified').length;
-  const pendingCount = MOCK_EVIDENCE.filter((e) => e.status === 'pending').length;
-  const flaggedCount = MOCK_EVIDENCE.filter((e) => e.status === 'flagged').length;
+  // ---------------------------------------------------------------------------
+  // Data fetching
+  // ---------------------------------------------------------------------------
 
-  // Filter — eslint-disable for React Compiler: mock data, no perf concern
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const refreshEvidence = useCallback(async () => {
+    if (!activeCampaignId) return;
+    setLoading(true);
+    try {
+      const result = await getEvidenceItems(activeCampaignId, {});
+      if (result.data && result.data.length > 0) {
+        setEvidence(result.data.map(mapDbEvidenceToUI));
+      }
+      // If no data returned (empty campaign), keep mock data as visual default
+    } catch {
+      // On error, keep existing data
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCampaignId]);
+
+  useEffect(() => {
+    refreshEvidence();
+  }, [refreshEvidence]);
+
+  // Counts
+  const totalCount = evidence.length;
+  const verifiedCount = evidence.filter((e) => e.status === 'verified').length;
+  const pendingCount = evidence.filter((e) => e.status === 'pending').length;
+  const flaggedCount = evidence.filter((e) => e.status === 'flagged').length;
+
+  // Filter
   const filteredEvidence = useMemo(() => {
-    return MOCK_EVIDENCE.filter((item) => {
+    return evidence.filter((item) => {
       const matchesSearch =
         !searchQuery ||
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -384,20 +450,20 @@ export default function EvidencePage() {
       const matchesCounty = !countyFilter || item.county === countyFilter;
       return matchesSearch && matchesType && matchesStatus && matchesCounty;
     });
-  }, [searchQuery, typeFilter, statusFilter, countyFilter]);
+  }, [searchQuery, typeFilter, statusFilter, countyFilter, evidence]);
 
   const availableCounties = useMemo(() => {
-    return Array.from(new Set(MOCK_EVIDENCE.map((e) => e.county))).sort();
-  }, []);
+    return Array.from(new Set(evidence.map((e) => e.county).filter(Boolean))).sort();
+  }, [evidence]);
 
   // Donut chart data: evidence by type
   const typeDonutData = useMemo(() => {
     return EVIDENCE_TYPES.map((t) => ({
       name: TYPE_LABELS[t],
-      value: MOCK_EVIDENCE.filter((e) => e.type === t).length,
+      value: evidence.filter((e) => e.type === t).length,
       type: t,
     })).filter((d) => d.value > 0);
-  }, []);
+  }, [evidence]);
 
   // DataTable columns for list view
   const columns: Column<EvidenceItem>[] = [
@@ -458,6 +524,16 @@ export default function EvidencePage() {
 
   return (
     <div className="space-y-6">
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-40 bg-white/60 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 border-3 border-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-secondary font-medium">Loading evidence...</p>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <FadeIn direction="down" duration={0.4}>
         <div className="flex items-center justify-between">

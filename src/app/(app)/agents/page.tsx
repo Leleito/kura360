@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users,
@@ -35,7 +35,11 @@ import {
 } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatPhone, formatDate, percentage } from '@/lib/utils';
+import { useCampaign } from '@/lib/campaign-context';
+import { useUser } from '@/lib/auth/hooks';
+import { getAgents, createAgent } from '@/lib/actions/agents';
 import type { AgentStatus } from '@/lib/validators/agents';
+import type { Tables } from '@/types/database';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -221,8 +225,35 @@ const FORM_COUNTY_OPTIONS = COUNTY_OPTIONS.filter((c) => c.value !== '');
 // Component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Map DB agent row to the UI Agent interface
+// ---------------------------------------------------------------------------
+
+function mapDbAgentToUI(dbAgent: Tables<'agents'>): Agent {
+  return {
+    id: dbAgent.id,
+    full_name: dbAgent.full_name,
+    phone: dbAgent.phone,
+    national_id: dbAgent.national_id ?? '',
+    county: dbAgent.county ?? '',
+    constituency: dbAgent.sub_county ?? '',
+    polling_station: dbAgent.assigned_station_name ?? '',
+    status: (dbAgent.status as AgentStatus) || 'pending',
+    last_check_in: dbAgent.checked_in_at,
+    photo_url: dbAgent.photo_url,
+  };
+}
+
 export default function AgentsPage() {
   const router = useRouter();
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+  const { user } = useUser();
+
+  // Agent data (falls back to mock)
+  const [agents, setAgents] = useState<Agent[]>(MOCK_AGENTS);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -241,19 +272,43 @@ export default function AgentsPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // ---------------------------------------------------------------------------
+  // Data fetching
+  // ---------------------------------------------------------------------------
+
+  const refreshAgents = useCallback(async () => {
+    if (!activeCampaignId) return;
+    setLoading(true);
+    try {
+      const result = await getAgents(activeCampaignId, {});
+      if (result.data && result.data.length > 0) {
+        setAgents(result.data.map(mapDbAgentToUI));
+      }
+      // If no data returned (empty campaign), keep mock data as visual default
+    } catch {
+      // On error, keep existing data (mock or previously fetched)
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCampaignId]);
+
+  useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
+
+  // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: MOCK_AGENTS.length };
+    const counts: Record<string, number> = { all: agents.length };
     for (const s of Object.keys(STATUS_CONFIG)) {
-      counts[s] = MOCK_AGENTS.filter((a) => a.status === s).length;
+      counts[s] = agents.filter((a) => a.status === s).length;
     }
     return counts;
-  }, []);
+  }, [agents]);
 
   const filteredAgents = useMemo(() => {
-    return MOCK_AGENTS.filter((agent) => {
+    return agents.filter((agent) => {
       const matchesSearch =
         !search ||
         agent.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -264,37 +319,37 @@ export default function AgentsPage() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [search, activeStatus]);
+  }, [search, activeStatus, agents]);
 
-  const totalAgents = MOCK_AGENTS.length;
-  const deployedCount = MOCK_AGENTS.filter(
+  const totalAgents = agents.length;
+  const deployedCount = agents.filter(
     (a) => a.status === 'deployed' || a.status === 'active' || a.status === 'checked-in'
   ).length;
-  const checkedInCount = MOCK_AGENTS.filter((a) => a.status === 'checked-in').length;
-  const pendingCount = MOCK_AGENTS.filter((a) => a.status === 'pending').length;
+  const checkedInCount = agents.filter((a) => a.status === 'checked-in').length;
+  const pendingCount = agents.filter((a) => a.status === 'pending').length;
 
   // County distribution (top 10)
   const countyData = useMemo(() => {
     const map: Record<string, number> = {};
-    MOCK_AGENTS.forEach((a) => {
+    agents.forEach((a) => {
       map[a.county] = (map[a.county] || 0) + 1;
     });
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([county, count]) => ({ county, count }));
-  }, []);
+  }, [agents]);
 
   // Status pie data
   const pieData = useMemo(() => {
     return (Object.keys(STATUS_CONFIG) as AgentStatus[])
       .map((s) => ({
         name: STATUS_CONFIG[s].label,
-        value: MOCK_AGENTS.filter((a) => a.status === s).length,
+        value: agents.filter((a) => a.status === s).length,
         status: s,
       }))
       .filter((d) => d.value > 0);
-  }, []);
+  }, [agents]);
 
   // ---------------------------------------------------------------------------
   // Form handling
@@ -323,10 +378,41 @@ export default function AgentsPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validateForm()) return;
-    setShowRegisterModal(false);
-    resetForm();
+    if (!activeCampaignId || !user) {
+      // If no campaign or user, fall back to demo behavior
+      setShowRegisterModal(false);
+      resetForm();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await createAgent(
+        {
+          campaign_id: activeCampaignId,
+          full_name: formData.full_name,
+          phone: formData.phone,
+          national_id: formData.national_id,
+          county: formData.county,
+          sub_county: formData.constituency,
+          assigned_station_name: formData.polling_station,
+          status: 'pending',
+        },
+        user.id
+      );
+      if (result.data) {
+        setShowRegisterModal(false);
+        resetForm();
+        refreshAgents();
+      } else if (result.error) {
+        setFormErrors({ full_name: result.error });
+      }
+    } catch {
+      setFormErrors({ full_name: 'Failed to register agent. Please try again.' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -353,6 +439,16 @@ export default function AgentsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-40 bg-white/60 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 border-3 border-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-secondary font-medium">Loading agents...</p>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <FadeIn direction="down" duration={0.4}>
         <div className="flex items-center justify-between">
@@ -648,9 +744,9 @@ export default function AgentsPage() {
             <Button variant="ghost" onClick={() => { setShowRegisterModal(false); resetForm(); }}>
               Cancel
             </Button>
-            <Button onClick={handleRegister}>
+            <Button onClick={handleRegister} disabled={submitting}>
               <UserPlus className="h-4 w-4" />
-              Register Agent
+              {submitting ? 'Registering...' : 'Register Agent'}
             </Button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -29,6 +29,10 @@ import {
 import { Button, Avatar, Badge } from '@/components/ui';
 import { AnimatedCounter, FadeIn } from '@/components/premium';
 import { cn, formatPhone, formatDate, formatDateShort, formatKES } from '@/lib/utils';
+import { useCampaign } from '@/lib/campaign-context';
+import { getAgentById } from '@/lib/actions/agents';
+import { getAuditLog } from '@/lib/actions/audit';
+import type { Tables } from '@/types/database';
 import type { AgentStatus } from '@/lib/validators/agents';
 
 // ---------------------------------------------------------------------------
@@ -191,11 +195,131 @@ export default function AgentDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const agent = getMockAgent(id);
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
+  // State: start with mock data as default so page looks good without a campaign
+  const [agent, setAgent] = useState<AgentDetail>(getMockAgent(id));
+  const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Fetch real data from Supabase
+  // ---------------------------------------------------------------------------
+
+  const mapDbAgentToDetail = useCallback(
+    (row: Tables<'agents'>): AgentDetail => ({
+      id: row.id,
+      full_name: row.full_name,
+      phone: row.phone,
+      national_id: row.national_id ?? '',
+      county: row.county ?? '',
+      constituency: row.sub_county ?? '',
+      polling_station: row.assigned_station_name ?? '',
+      status: (row.status as AgentStatus) || 'pending',
+      photo_url: row.photo_url,
+      created_at: row.created_at,
+      assigned_at: row.checked_in_at,
+      payment_status: (row.payment_status as 'paid' | 'pending' | 'not_due') ?? 'not_due',
+      payment_amount_kes: row.payment_amount_kes ?? 0,
+      // Build a single check-in entry if the agent has checked in
+      check_ins: row.checked_in_at
+        ? [
+            {
+              id: `ci-${row.id}`,
+              timestamp: row.checked_in_at,
+              lat: row.check_in_lat ?? 0,
+              lng: row.check_in_lon ?? 0,
+              notes: null,
+              status: 'on-time' as const,
+            },
+          ]
+        : [],
+      // Activity log will be populated separately from audit_log
+      activity_log: [],
+    }),
+    []
+  );
+
+  const mapAuditToActivity = useCallback(
+    (row: Tables<'audit_log'>): ActivityLogEntry => {
+      // Determine icon based on audit action + table
+      let icon: ActivityLogEntry['icon'] = 'register';
+      const actionLower = row.action.toLowerCase();
+      if (actionLower === 'insert' && row.table_name === 'agents') icon = 'register';
+      else if (actionLower === 'update') icon = 'assign';
+      else if (row.table_name === 'transactions') icon = 'pay';
+      else if (actionLower === 'checkin' || actionLower === 'check-in') icon = 'checkin';
+
+      // Build a human-readable action label
+      let actionLabel = row.action;
+      if (actionLower === 'insert') actionLabel = 'Created';
+      else if (actionLower === 'update') actionLabel = 'Updated';
+      else if (actionLower === 'delete') actionLabel = 'Deleted';
+
+      const details =
+        row.table_name === 'agents'
+          ? `${actionLabel} on agents table`
+          : `${actionLabel} on ${row.table_name}`;
+
+      return {
+        id: row.id,
+        timestamp: row.created_at,
+        action: actionLabel,
+        details,
+        icon,
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!activeCampaignId) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      try {
+        // Fetch agent and audit log in parallel
+        const [agentResult, auditResult] = await Promise.all([
+          getAgentById(id),
+          getAuditLog(activeCampaignId, { recordId: id, pageSize: 20 }),
+        ]);
+
+        if (cancelled) return;
+
+        if (agentResult.data) {
+          const mapped = mapDbAgentToDetail(agentResult.data);
+
+          // Merge audit log entries as activity log
+          if (auditResult.data && auditResult.data.length > 0) {
+            mapped.activity_log = auditResult.data.map(mapAuditToActivity);
+          }
+
+          setAgent(mapped);
+        }
+        // If no agent data returned (e.g. empty campaign), keep mock data as visual default
+      } catch (err) {
+        console.error('[AgentDetail] Failed to fetch data:', err);
+        // On error, keep existing mock data
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaignId, id, mapDbAgentToDetail, mapAuditToActivity]);
+
+  // ---------------------------------------------------------------------------
+  // Derived values
+  // ---------------------------------------------------------------------------
+
   const statusCfg = STATUS_CONFIG[agent.status];
   const paymentBadge = PAYMENT_BADGE_MAP[agent.payment_status];
   const checkinData = getCheckinFrequencyData();
-  const [copiedId, setCopiedId] = useState(false);
 
   const _handleCopyId = () => {
     navigator.clipboard.writeText(agent.national_id);
@@ -207,6 +331,16 @@ export default function AgentDetailPage({
 
   return (
     <div className="space-y-6">
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-40 bg-white/60 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 border-3 border-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-secondary font-medium">Loading agent details...</p>
+          </div>
+        </div>
+      )}
+
       {/* Back navigation */}
       <FadeIn direction="left" duration={0.3}>
         <button

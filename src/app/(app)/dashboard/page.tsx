@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -39,6 +40,12 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { formatKES } from "@/lib/utils";
+import { useCampaign } from "@/lib/campaign-context";
+import { getFinanceSummary, type FinanceSummary } from "@/lib/actions/transactions";
+import { getAgentStats, type AgentStats } from "@/lib/actions/agents";
+import { getEvidenceStats } from "@/lib/actions/evidence";
+import { getDonationStats, type DonationStats } from "@/lib/actions/donations";
+import { getComplianceStatus, type ComplianceStatus } from "@/lib/actions/compliance";
 
 // ── Design token hex values for Recharts (CSS vars don't work in SVG) ──
 const COLORS = {
@@ -55,8 +62,9 @@ const COLORS = {
   textTertiary: "#A0AEC0",
 };
 
-// ── 7-Day Spending Trend ──
-const spendingTrend = [
+// ── Default mock data (shown when no campaign is selected) ──
+
+const DEFAULT_SPENDING_TREND = [
   { day: "Mon", amount: 420000, donations: 185000 },
   { day: "Tue", amount: 680000, donations: 240000 },
   { day: "Wed", amount: 350000, donations: 310000 },
@@ -66,8 +74,7 @@ const spendingTrend = [
   { day: "Sun", amount: 290000, donations: 180000 },
 ];
 
-// ── ECFA Category Breakdown ──
-const categoryData = [
+const DEFAULT_CATEGORY_DATA = [
   { name: "Venue Hire", value: 2100000, color: COLORS.blue },
   { name: "Publicity", value: 3400000, color: COLORS.green },
   { name: "Advertising", value: 1800000, color: COLORS.purple },
@@ -76,8 +83,7 @@ const categoryData = [
   { name: "Other", value: 300000, color: COLORS.blueLight },
 ];
 
-// ── Recent Transactions ──
-const recentTransactions = [
+const DEFAULT_RECENT_TRANSACTIONS = [
   {
     id: "TXN-2847",
     description: "Uhuru Gardens rally venue deposit",
@@ -120,8 +126,7 @@ const recentTransactions = [
   },
 ];
 
-// ── Compliance Alerts ──
-const complianceAlerts = [
+const DEFAULT_COMPLIANCE_ALERTS = [
   {
     text: "Anonymous donation KES 8,000 exceeds KES 5,000 ECFA threshold",
     level: "critical" as const,
@@ -149,14 +154,23 @@ const complianceAlerts = [
   },
 ];
 
-// ── Agent Activity ──
-const agentStats = [
+const DEFAULT_AGENT_STATS = [
   { county: "Nairobi", deployed: 312, total: 350, reports: 89 },
   { county: "Mombasa", deployed: 186, total: 220, reports: 64 },
   { county: "Kisumu", deployed: 143, total: 180, reports: 51 },
   { county: "Nakuru", deployed: 128, total: 160, reports: 47 },
   { county: "Eldoret", deployed: 97, total: 130, reports: 38 },
 ];
+
+// Category color mapping for real data
+const CATEGORY_COLOR_MAP: Record<string, string> = {
+  "Venue Hire": COLORS.blue,
+  Publicity: COLORS.green,
+  Advertising: COLORS.purple,
+  Transport: COLORS.orange,
+  Personnel: COLORS.navy,
+  "Admin & Other": COLORS.blueLight,
+};
 
 // ── Custom Recharts Tooltip ──
 function SpendingTooltip({
@@ -197,10 +211,12 @@ function renderPieLabel(props: { name?: string; percent?: number }) {
 }
 
 // ── Status badge mapping ──
-const statusBadge: Record<string, { text: string; variant: "success" | "warning" | "danger" | "neutral" }> = {
+const statusBadgeMap: Record<string, { text: string; variant: "success" | "warning" | "danger" | "neutral" }> = {
   verified: { text: "Verified", variant: "success" },
   pending: { text: "Pending", variant: "warning" },
   flagged: { text: "Flagged", variant: "danger" },
+  approved: { text: "Approved", variant: "success" },
+  rejected: { text: "Rejected", variant: "danger" },
 };
 
 // ── Alert icon mapping ──
@@ -212,17 +228,163 @@ function AlertIcon({ level }: { level: "critical" | "warning" | "info" }) {
   return <Info className="w-3.5 h-3.5 text-blue flex-shrink-0" />;
 }
 
+// ── Helper: format relative time ──
+function formatRelativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 
 export default function DashboardPage() {
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
+  // ── State for real data (defaults = mock data) ──
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [agentData, setAgentData] = useState<AgentStats | null>(null);
+  const [evidenceData, setEvidenceData] = useState<{ total: number; verified: number; pending: number; flagged: number } | null>(null);
+  const [donationData, setDonationData] = useState<DonationStats | null>(null);
+  const [complianceData, setComplianceData] = useState<ComplianceStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeCampaignId) return;
+    const campaignId = activeCampaignId;
+
+    async function fetchDashboard() {
+      setLoading(true);
+      try {
+        const [finance, agents, evidence, donations, compliance] = await Promise.all([
+          getFinanceSummary(campaignId),
+          getAgentStats(campaignId),
+          getEvidenceStats(campaignId),
+          getDonationStats(campaignId),
+          getComplianceStatus(campaignId),
+        ]);
+        if (!finance.error) setFinanceSummary(finance);
+        if (!agents.error) setAgentData(agents);
+        if (!evidence.error) setEvidenceData(evidence);
+        if (!donations.error) setDonationData(donations);
+        if (!compliance.error) setComplianceData(compliance);
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDashboard();
+  }, [activeCampaignId]);
+
+  // ── Derived values (real data or fallback defaults) ──
+  const balance = financeSummary?.balance ?? 12400000;
+  const totalSpent = financeSummary?.totalSpent ?? 8700000;
+  const spendingLimit = financeSummary?.spendingLimit ?? 433000000;
+  const spendPct = spendingLimit > 0 ? ((totalSpent / spendingLimit) * 100).toFixed(1) : "0";
+
+  const agentsDeployed = agentData ? (agentData.deployed + agentData.active + agentData.checkedIn) : 1247;
+  const agentsTotal = agentData?.total ?? 1580;
+  const agentPct = agentsTotal > 0 ? Math.round((agentsDeployed / agentsTotal) * 100) : 79;
+
+  const evidenceTotal = evidenceData?.total ?? 3891;
+  const _evidenceVerified = evidenceData?.verified ?? 3891;
+  const evidencePending = evidenceData?.pending ?? 0;
+  const evidenceSub = evidencePending > 0
+    ? `${evidencePending} pending verification`
+    : "All verified & compliant";
+
+  const donationsAmount = donationData?.totalAmount ?? 4200000;
+  const donorsCount = donationData?.totalCount ?? 2847;
+
+  const complianceScore = complianceData?.score ?? 94;
+  const complianceAlertCount = complianceData
+    ? complianceData.alerts.filter((a) => !a.resolved).length
+    : 4;
+
+  // Category data for pie chart
+  const categoryData = financeSummary?.byCategory && financeSummary.byCategory.length > 0
+    ? financeSummary.byCategory.map((c) => ({
+        name: c.category,
+        value: c.total,
+        color: CATEGORY_COLOR_MAP[c.category] ?? COLORS.blueLight,
+      }))
+    : DEFAULT_CATEGORY_DATA;
+
+  const categoryTotal = categoryData.reduce((sum, c) => sum + c.value, 0);
+
+  // Recent transactions for table
+  const recentTransactions = financeSummary?.recentTransactions && financeSummary.recentTransactions.length > 0
+    ? financeSummary.recentTransactions.slice(0, 5).map((t) => ({
+        id: t.reference ?? t.id.slice(0, 8),
+        description: t.description,
+        amount: t.type === "expense" ? -t.amount_kes : t.amount_kes,
+        category: t.category,
+        date: new Date(t.transaction_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        status: (t.status === "approved" ? "verified" : t.status === "rejected" ? "flagged" : "pending") as "verified" | "pending" | "flagged",
+      }))
+    : DEFAULT_RECENT_TRANSACTIONS;
+
+  // Compliance alerts
+  const complianceAlerts = complianceData?.alerts && complianceData.alerts.length > 0
+    ? complianceData.alerts.filter((a) => !a.resolved).slice(0, 5).map((a) => ({
+        text: a.message,
+        level: a.level,
+        time: formatRelativeTime(a.timestamp),
+      }))
+    : DEFAULT_COMPLIANCE_ALERTS;
+
+  // Agent stats by county
+  const agentStats = agentData?.byCounty && agentData.byCounty.length > 0
+    ? agentData.byCounty.slice(0, 5).map((c) => ({
+        county: c.county,
+        deployed: c.deployed,
+        total: c.count,
+        reports: 0, // reports not tracked in agent stats yet
+      }))
+    : DEFAULT_AGENT_STATS;
+
+  // Category spending for progress bars
+  const categorySpending = complianceData?.categorySpending && complianceData.categorySpending.length > 0
+    ? complianceData.categorySpending
+    : null;
+
+  // Spending trend (no server action for this yet -- keep mock)
+  const spendingTrend = DEFAULT_SPENDING_TREND;
+
   const kesFormatter = (v: number) =>
     new Intl.NumberFormat("en-KE", {
       notation: "compact",
       compactDisplay: "short",
       maximumFractionDigits: 1,
     }).format(v);
+
+  // ── Loading skeleton ──
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 bg-surface-border-light rounded-xl animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-28 bg-surface-border-light rounded-xl animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-72 bg-surface-border-light rounded-xl animate-pulse" />
+          <div className="h-72 bg-surface-border-light rounded-xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -234,12 +396,14 @@ export default function DashboardPage() {
               Campaign Command Centre
             </h1>
             <p className="text-xs text-text-tertiary mt-0.5">
-              Gubernatorial Campaign 2027 &mdash; Nairobi County
+              {campaign
+                ? `${campaign.candidate_name} \u2014 ${campaign.county ?? "All Counties"}`
+                : "Gubernatorial Campaign 2027 \u2014 Nairobi County"}
             </p>
           </div>
           <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
             <Clock className="w-3 h-3" />
-            <span>Last updated: Today, 14:32 EAT</span>
+            <span>Last updated: Today, {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} EAT</span>
             <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
             <span className="text-green font-semibold">Live</span>
           </div>
@@ -253,13 +417,13 @@ export default function DashboardPage() {
             label="Campaign Balance"
             value={
               <AnimatedCounter
-                value={12400000}
+                value={balance}
                 prefix="KES "
                 formatter={kesFormatter}
                 className="text-xl font-extrabold text-green"
               />
             }
-            sub="of KES 433M limit (2.9%)"
+            sub={`of ${formatKES(spendingLimit)} limit (${spendPct}%)`}
             variant="green"
             icon={<Wallet className="w-4 h-4" />}
           />
@@ -269,7 +433,7 @@ export default function DashboardPage() {
             label="Total Spent"
             value={
               <AnimatedCounter
-                value={8700000}
+                value={totalSpent}
                 prefix="KES "
                 formatter={kesFormatter}
                 className="text-xl font-extrabold text-blue"
@@ -285,12 +449,12 @@ export default function DashboardPage() {
             label="Agents Deployed"
             value={
               <AnimatedCounter
-                value={1247}
+                value={agentsDeployed}
                 formatter={(v) => Math.round(v).toLocaleString()}
                 className="text-xl font-extrabold text-purple"
               />
             }
-            sub="of 1,580 assigned (79%)"
+            sub={`of ${agentsTotal.toLocaleString()} assigned (${agentPct}%)`}
             variant="purple"
             icon={<Users className="w-4 h-4" />}
           />
@@ -300,12 +464,12 @@ export default function DashboardPage() {
             label="Evidence Items"
             value={
               <AnimatedCounter
-                value={3891}
+                value={evidenceTotal}
                 formatter={(v) => Math.round(v).toLocaleString()}
                 className="text-xl font-extrabold text-navy"
               />
             }
-            sub="All verified & compliant"
+            sub={evidenceSub}
             variant="navy"
             icon={<FileCheck className="w-4 h-4" />}
           />
@@ -315,13 +479,13 @@ export default function DashboardPage() {
             label="Donations"
             value={
               <AnimatedCounter
-                value={4200000}
+                value={donationsAmount}
                 prefix="KES "
                 formatter={kesFormatter}
                 className="text-xl font-extrabold text-green"
               />
             }
-            sub="2,847 donors via M-Pesa"
+            sub={`${donorsCount.toLocaleString()} donors via M-Pesa`}
             variant="green"
             icon={<HandCoins className="w-4 h-4" />}
           />
@@ -331,12 +495,12 @@ export default function DashboardPage() {
             label="Compliance Score"
             value={
               <AnimatedCounter
-                value={94}
+                value={complianceScore}
                 suffix="%"
                 className="text-xl font-extrabold text-orange"
               />
             }
-            sub="4 items need attention"
+            sub={`${complianceAlertCount} items need attention`}
             variant="orange"
             icon={<ShieldCheck className="w-4 h-4" />}
           />
@@ -435,7 +599,7 @@ export default function DashboardPage() {
               Spending by ECFA Category
             </h2>
             <p className="text-[10px] text-text-tertiary mb-2">
-              Total: {formatKES(9000000)}
+              Total: {formatKES(categoryTotal)}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -491,36 +655,50 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <ProgressBar
-              value={2.1}
-              max={50}
-              label="Venue Hire  ---  KES 2.1M of 50M"
-              animate
-            />
-            <ProgressBar
-              value={3.4}
-              max={80}
-              label="Publicity Materials  ---  KES 3.4M of 80M"
-              animate
-            />
-            <ProgressBar
-              value={1.8}
-              max={40}
-              label="Advertising  ---  KES 1.8M of 40M"
-              animate
-            />
-            <ProgressBar
-              value={24.6}
-              max={30}
-              label="Transport  ---  KES 24.6M of 30M"
-              animate
-            />
-            <ProgressBar
-              value={0.5}
-              max={20}
-              label="Personnel  ---  KES 0.5M of 20M"
-              animate
-            />
+            {categorySpending ? (
+              categorySpending.map((cs) => (
+                <ProgressBar
+                  key={cs.category}
+                  value={cs.spent / 1_000_000}
+                  max={cs.limit / 1_000_000}
+                  label={`${cs.category}  ---  KES ${(cs.spent / 1_000_000).toFixed(1)}M of ${(cs.limit / 1_000_000).toFixed(0)}M`}
+                  animate
+                />
+              ))
+            ) : (
+              <>
+                <ProgressBar
+                  value={2.1}
+                  max={50}
+                  label="Venue Hire  ---  KES 2.1M of 50M"
+                  animate
+                />
+                <ProgressBar
+                  value={3.4}
+                  max={80}
+                  label="Publicity Materials  ---  KES 3.4M of 80M"
+                  animate
+                />
+                <ProgressBar
+                  value={1.8}
+                  max={40}
+                  label="Advertising  ---  KES 1.8M of 40M"
+                  animate
+                />
+                <ProgressBar
+                  value={24.6}
+                  max={30}
+                  label="Transport  ---  KES 24.6M of 30M"
+                  animate
+                />
+                <ProgressBar
+                  value={0.5}
+                  max={20}
+                  label="Personnel  ---  KES 0.5M of 20M"
+                  animate
+                />
+              </>
+            )}
           </div>
         </FadeIn>
 
@@ -572,7 +750,7 @@ export default function DashboardPage() {
                   Recent Transactions
                 </h2>
                 <p className="text-[10px] text-text-tertiary mt-0.5">
-                  Latest 5 campaign financial entries
+                  Latest {recentTransactions.length} campaign financial entries
                 </p>
               </div>
               <button className="flex items-center gap-1 text-[10px] text-blue font-semibold hover:underline">
@@ -605,45 +783,48 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentTransactions.map((tx) => (
-                    <tr
-                      key={tx.id}
-                      className="border-b border-surface-border-light hover:bg-surface-border-light/50 transition-colors"
-                    >
-                      <td className="py-2.5 px-4 font-mono text-text-tertiary text-[10px]">
-                        {tx.id}
-                      </td>
-                      <td className="py-2.5 px-4 text-text-primary font-medium max-w-[200px] truncate">
-                        {tx.description}
-                      </td>
-                      <td className="py-2.5 px-4 text-text-secondary">
-                        {tx.category}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-bold tabular-nums">
-                        <span
-                          className={`flex items-center justify-end gap-0.5 ${
-                            tx.amount > 0 ? "text-green" : "text-text-primary"
-                          }`}
-                        >
-                          {tx.amount > 0 ? (
-                            <ArrowUpRight className="w-3 h-3 text-green" />
-                          ) : (
-                            <ArrowDownRight className="w-3 h-3 text-text-tertiary" />
-                          )}
-                          {formatKES(Math.abs(tx.amount))}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-text-tertiary">
-                        {tx.date}
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <Badge
-                          text={statusBadge[tx.status].text}
-                          variant={statusBadge[tx.status].variant}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {recentTransactions.map((tx) => {
+                    const badge = statusBadgeMap[tx.status] ?? { text: tx.status, variant: "neutral" as const };
+                    return (
+                      <tr
+                        key={tx.id}
+                        className="border-b border-surface-border-light hover:bg-surface-border-light/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-4 font-mono text-text-tertiary text-[10px]">
+                          {tx.id}
+                        </td>
+                        <td className="py-2.5 px-4 text-text-primary font-medium max-w-[200px] truncate">
+                          {tx.description}
+                        </td>
+                        <td className="py-2.5 px-4 text-text-secondary">
+                          {tx.category}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-bold tabular-nums">
+                          <span
+                            className={`flex items-center justify-end gap-0.5 ${
+                              tx.amount > 0 ? "text-green" : "text-text-primary"
+                            }`}
+                          >
+                            {tx.amount > 0 ? (
+                              <ArrowUpRight className="w-3 h-3 text-green" />
+                            ) : (
+                              <ArrowDownRight className="w-3 h-3 text-text-tertiary" />
+                            )}
+                            {formatKES(Math.abs(tx.amount))}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-text-tertiary">
+                          {tx.date}
+                        </td>
+                        <td className="py-2.5 px-4 text-center">
+                          <Badge
+                            text={badge.text}
+                            variant={badge.variant}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -665,19 +846,19 @@ export default function DashboardPage() {
               <div className="text-right">
                 <p className="text-lg font-extrabold text-purple">
                   <AnimatedCounter
-                    value={1247}
+                    value={agentsDeployed}
                     formatter={(v) => Math.round(v).toLocaleString()}
                   />
                 </p>
-                <p className="text-[9px] text-text-tertiary">of 1,580 total</p>
+                <p className="text-[9px] text-text-tertiary">of {agentsTotal.toLocaleString()} total</p>
               </div>
             </div>
 
             <div className="space-y-3">
               {agentStats.map((county) => {
-                const pct = Math.round(
-                  (county.deployed / county.total) * 100
-                );
+                const pct = county.total > 0
+                  ? Math.round((county.deployed / county.total) * 100)
+                  : 0;
                 return (
                   <div key={county.county}>
                     <div className="flex items-center justify-between mb-1">
@@ -692,9 +873,11 @@ export default function DashboardPage() {
                           {county.deployed}
                         </span>
                         /{county.total}
-                        <span className="text-text-tertiary ml-1.5">
-                          {county.reports} reports
-                        </span>
+                        {county.reports > 0 && (
+                          <span className="text-text-tertiary ml-1.5">
+                            {county.reports} reports
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="h-1.5 bg-surface-border-light rounded-full overflow-hidden">

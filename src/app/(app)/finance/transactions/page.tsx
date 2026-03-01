@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -17,6 +17,7 @@ import {
   Trash2,
   X,
   BarChart3,
+  Plus,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,9 @@ import {
   type ECFACategory,
   type TransactionStatus,
 } from "@/lib/validators/finance";
+import { useCampaign } from "@/lib/campaign-context";
+import { getTransactions } from "@/lib/actions/transactions";
+import { exportTransactionsCSV } from "@/lib/export";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -266,6 +270,69 @@ const PAGE_SIZE = 8;
 /* -------------------------------------------------------------------------- */
 
 export default function TransactionsPage() {
+  const { campaign } = useCampaign();
+  const activeCampaignId = campaign?.id ?? null;
+
+  // ── Data state ──
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [rawTransactions, setRawTransactions] = useState<Array<{
+    id: string;
+    transaction_date: string;
+    description: string;
+    category: string;
+    amount_kes: number;
+    status: string;
+    vendor_name?: string | null;
+    reference?: string | null;
+    receipt_url?: string | null;
+    type: string;
+    recorded_by: string;
+  }>>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Fetch real data when campaign is active
+  useEffect(() => {
+    if (!activeCampaignId) return;
+    const campaignId = activeCampaignId;
+
+    async function fetchTransactions() {
+      setDataLoading(true);
+      try {
+        const result = await getTransactions(campaignId, { pageSize: 100 });
+        if (!result.error && result.data.length > 0) {
+          setRawTransactions(result.data);
+
+          const mapped: Transaction[] = result.data.map((t) => ({
+            id: t.reference ?? `TXN-${t.id.slice(0, 6)}`,
+            date: t.transaction_date,
+            description: t.description,
+            category: t.category as ECFACategory,
+            amount: t.amount_kes,
+            receipt_url: t.receipt_url,
+            status: t.status as TransactionStatus,
+            notes: t.flagged_reason ?? "",
+            created_by: t.vendor_name ?? t.recorded_by ?? "System",
+          }));
+          setAllTransactions(mapped);
+        }
+      } catch (err) {
+        console.error("[Transactions] Failed to fetch:", err);
+      } finally {
+        setDataLoading(false);
+      }
+    }
+    fetchTransactions();
+  }, [activeCampaignId]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
   /* ---- Filters ---- */
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -284,15 +351,15 @@ export default function TransactionsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   /* ---- Derived: stats ---- */
-  const totalAmount = MOCK_TRANSACTIONS.reduce((s, t) => s + t.amount, 0);
-  const approvedAmount = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").reduce((s, t) => s + t.amount, 0);
-  const approvedCount = MOCK_TRANSACTIONS.filter((t) => t.status === "approved").length;
-  const pendingCount = MOCK_TRANSACTIONS.filter((t) => t.status === "pending").length;
-  const approvedPct = percentage(approvedCount, MOCK_TRANSACTIONS.length);
+  const totalAmount = allTransactions.reduce((s, t) => s + t.amount, 0);
+  const approvedAmount = allTransactions.filter((t) => t.status === "approved").reduce((s, t) => s + t.amount, 0);
+  const approvedCount = allTransactions.filter((t) => t.status === "approved").length;
+  const pendingCount = allTransactions.filter((t) => t.status === "pending").length;
+  const approvedPct = percentage(approvedCount, allTransactions.length);
 
   /* ---- Derived: filtered + sorted ---- */
   const filtered = useMemo(() => {
-    let list = [...MOCK_TRANSACTIONS];
+    let list = [...allTransactions];
 
     if (search) {
       const q = search.toLowerCase();
@@ -333,7 +400,7 @@ export default function TransactionsPage() {
     });
 
     return list;
-  }, [search, categoryFilter, statusFilter, dateFrom, dateTo, sortKey, sortDir]);
+  }, [allTransactions, search, categoryFilter, statusFilter, dateFrom, dateTo, sortKey, sortDir]);
 
   /* ---- Pagination derived ---- */
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -377,6 +444,16 @@ export default function TransactionsPage() {
     setPage(1);
   }
 
+  function handleExportCSV() {
+    if (rawTransactions.length > 0) {
+      exportTransactionsCSV(rawTransactions);
+      setToastMessage("CSV exported successfully!");
+    } else {
+      // Fall back to mock data export format
+      setToastMessage("No real transaction data to export. Connect a campaign first.");
+    }
+  }
+
   const hasActiveFilters = search || categoryFilter || statusFilter || dateFrom || dateTo;
 
   const sortIndicator = (columnKey: SortKey) => {
@@ -401,8 +478,65 @@ export default function TransactionsPage() {
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
 
+  if (dataLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-14 bg-surface-border-light rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-28 bg-surface-border-light rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="h-24 bg-surface-border-light rounded-2xl animate-pulse" />
+        <div className="h-96 bg-surface-border-light rounded-2xl animate-pulse" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Toast notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-navy text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
+          {toastMessage}
+        </div>
+      )}
+
+      {/* ---- Add Transaction Modal ---- */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border w-full max-w-lg mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-extrabold text-navy">Add Transaction</h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1.5 rounded-lg hover:bg-surface-bg transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} className="text-text-tertiary" />
+              </button>
+            </div>
+            <p className="text-xs text-text-tertiary mb-4">
+              Transaction form coming soon. Use the KURA360 mobile app or the full form to record transactions.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors"
+              >
+                Cancel
+              </button>
+              <Link
+                href="/finance"
+                className="text-xs font-bold px-4 py-2.5 rounded-xl bg-green text-white hover:opacity-90 transition-opacity"
+              >
+                Go to Finance
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ---- Page header ---- */}
       <FadeIn direction="none" duration={0.3}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -417,7 +551,7 @@ export default function TransactionsPage() {
             <div>
               <h1 className="text-xl font-extrabold text-navy tracking-tight">All Transactions</h1>
               <p className="text-xs text-text-tertiary mt-0.5">
-                Full expenditure ledger &mdash; {MOCK_TRANSACTIONS.length} transactions recorded
+                Full expenditure ledger &mdash; {allTransactions.length} transactions recorded
               </p>
             </div>
           </div>
@@ -446,7 +580,17 @@ export default function TransactionsPage() {
                 </div>
               </FadeIn>
             )}
-            <button className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+            >
+              <Plus size={15} />
+              Add Transaction
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 bg-white text-text-secondary text-xs font-semibold px-4 py-2.5 rounded-xl border border-surface-border hover:bg-surface-bg transition-colors shadow-sm"
+            >
               <Download size={15} />
               Export CSV
             </button>
@@ -465,7 +609,7 @@ export default function TransactionsPage() {
               </div>
             </div>
             <AnimatedCounter
-              value={MOCK_TRANSACTIONS.length}
+              value={allTransactions.length}
               className="text-xl font-extrabold text-navy block"
             />
             <p className="text-[10px] text-text-tertiary mt-0.5">
@@ -507,7 +651,7 @@ export default function TransactionsPage() {
               className="text-xl font-extrabold text-blue block"
             />
             <p className="text-[10px] text-text-tertiary mt-0.5">
-              {approvedCount} of {MOCK_TRANSACTIONS.length} approved
+              {approvedCount} of {allTransactions.length} approved
             </p>
           </div>
         </FadeIn>
@@ -637,7 +781,7 @@ export default function TransactionsPage() {
           {hasActiveFilters && (
             <div className="mt-3 pt-3 border-t border-surface-border">
               <p className="text-[10px] text-text-tertiary">
-                Showing <span className="font-bold text-text-secondary">{filtered.length}</span> of {MOCK_TRANSACTIONS.length} transactions
+                Showing <span className="font-bold text-text-secondary">{filtered.length}</span> of {allTransactions.length} transactions
                 {filtered.length > 0 && (
                   <> &mdash; filtered total: <span className="font-bold text-navy">{formatKES(filteredTotal)}</span></>
                 )}
