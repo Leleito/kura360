@@ -1,0 +1,69 @@
+name: Slack Notifications
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  deployment_status:
+
+jobs:
+  notify-failure:
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":red_circle: *${{ github.repository }}* — ${{ github.event_name == 'workflow_run' && format('Workflow `{0}` failed', github.event.workflow_run.name) || 'Deployment failed' }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":red_circle: *${{ github.repository }}*\n*Event:* ${{ github.event_name == 'workflow_run' && format('Workflow `{0}` failed', github.event.workflow_run.name) || 'Deployment failed' }}\n*Branch:* `${{ github.event.workflow_run.head_branch || github.ref_name }}`\n*Triggered by:* ${{ github.event.workflow_run.actor.login || github.actor }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": { "type": "plain_text", "text": "View Run" },
+                      "url": "${{ github.event.workflow_run.html_url || github.event.deployment_status.target_url || format('https://github.com/{0}/actions', github.repository) }}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  notify-success:
+    if: >
+      github.event_name == 'deployment_status' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'Production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":large_green_circle: *${{ github.repository }}* — Production deployment succeeded",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":large_green_circle: *${{ github.repository }}*\n*Production deployed successfully*\n*Branch:* `${{ github.ref_name }}`\n*By:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
