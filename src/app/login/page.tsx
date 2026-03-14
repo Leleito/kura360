@@ -3,6 +3,7 @@
 import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { KuraLogoWhite } from "@/components/ui/kura-logo";
 
 type Step = "phone" | "otp";
 
@@ -222,13 +223,8 @@ function LoginContent() {
       {/* Left branding panel - desktop only */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-[#0F2A44] p-12 text-white">
         <div>
-          <div className="flex h-1.5 w-24 mb-8 rounded-full overflow-hidden">
-            <div className="flex-1 bg-black" />
-            <div className="flex-1 bg-[#E53E3E]" />
-            <div className="flex-1 bg-[#1D6B3F]" />
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight">KURA360</h1>
-          <p className="mt-2 text-lg text-blue-200/80">
+          <KuraLogoWhite size="lg" animated />
+          <p className="mt-3 text-lg text-blue-200/80 ml-[calc(40px+0.5rem)]">
             Campaign Compliance &amp; Operations
           </p>
         </div>
@@ -286,15 +282,8 @@ function LoginContent() {
       <div className="flex w-full flex-col lg:w-1/2">
         {/* Mobile header with navy bg */}
         <div className="bg-[#0F2A44] px-6 pb-8 pt-12 lg:hidden">
-          <div className="flex h-1 w-16 mb-4 rounded-full overflow-hidden">
-            <div className="flex-1 bg-black" />
-            <div className="flex-1 bg-[#E53E3E]" />
-            <div className="flex-1 bg-[#1D6B3F]" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            KURA360
-          </h1>
-          <p className="mt-1 text-sm text-blue-200/70">
+          <KuraLogoWhite size="md" animated />
+          <p className="mt-2 text-sm text-blue-200/70 ml-[calc(32px+0.5rem)]">
             Campaign Compliance &amp; Operations
           </p>
         </div>
