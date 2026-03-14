@@ -495,13 +495,22 @@ export default function EvidencePage() {
       {/* Stat Cards with AnimatedCounter */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Items', value: totalCount, sub: 'All evidence in vault', icon: Shield, color: 'text-navy', borderColor: 'border-l-[#0F2A44]' },
-          { label: 'Verified', value: verifiedCount, sub: `${Math.round((verifiedCount / totalCount) * 100)}% of total`, icon: ShieldCheck, color: 'text-green', borderColor: 'border-l-[#1D6B3F]' },
-          { label: 'Pending Review', value: pendingCount, sub: 'Awaiting verification', icon: Clock, color: 'text-orange', borderColor: 'border-l-[#ED8936]' },
-          { label: 'Flagged', value: flaggedCount, sub: 'Requires investigation', icon: AlertTriangle, color: 'text-red', borderColor: 'border-l-[#E53E3E]' },
+          { label: 'Total Items', value: totalCount, sub: 'All evidence in vault', icon: Shield, color: 'text-navy', borderColor: 'border-l-[#0F2A44]', filter: '' },
+          { label: 'Verified', value: verifiedCount, sub: `${Math.round((verifiedCount / totalCount) * 100)}% of total`, icon: ShieldCheck, color: 'text-green', borderColor: 'border-l-[#1D6B3F]', filter: 'verified' },
+          { label: 'Pending Review', value: pendingCount, sub: 'Awaiting verification', icon: Clock, color: 'text-orange', borderColor: 'border-l-[#ED8936]', filter: 'pending' },
+          { label: 'Flagged', value: flaggedCount, sub: 'Requires investigation', icon: AlertTriangle, color: 'text-red', borderColor: 'border-l-[#E53E3E]', filter: 'flagged' },
         ].map((stat, i) => (
           <FadeIn key={stat.label} delay={i * 0.1} direction="up">
-            <div className={cn('bg-white rounded-xl p-4 border border-surface-border border-l-4', stat.borderColor)}>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === stat.filter ? '' : stat.filter)}
+              className={cn(
+                'w-full text-left bg-white rounded-xl p-4 border border-surface-border border-l-4 transition-all duration-200',
+                'hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] cursor-pointer hover:scale-[1.01] active:scale-[0.99]',
+                statusFilter === stat.filter && stat.filter !== '' && 'ring-2 ring-blue/20',
+                stat.borderColor
+              )}
+            >
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wide">{stat.label}</p>
                 <stat.icon className={cn('h-4 w-4', stat.color)} />
@@ -512,7 +521,7 @@ export default function EvidencePage() {
                 formatter={(v) => Math.round(v).toLocaleString()}
               />
               <p className="text-[10px] text-text-tertiary mt-1">{stat.sub}</p>
-            </div>
+            </button>
           </FadeIn>
         ))}
       </div>

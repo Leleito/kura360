@@ -441,6 +441,7 @@ export default function DashboardPage() {
             sub={`of ${formatKES(spendingLimit)} limit (${spendPct}%)`}
             variant="green"
             icon={<Wallet className="w-4 h-4" />}
+            href="/finance"
           />
         </StaggerItem>
         <StaggerItem>
@@ -457,6 +458,7 @@ export default function DashboardPage() {
             sub="6 ECFA categories tracked"
             variant="blue"
             icon={<TrendingUp className="w-4 h-4" />}
+            href="/finance/transactions"
           />
         </StaggerItem>
         <StaggerItem>
@@ -472,6 +474,7 @@ export default function DashboardPage() {
             sub={`of ${agentsTotal.toLocaleString()} assigned (${agentPct}%)`}
             variant="purple"
             icon={<Users className="w-4 h-4" />}
+            href="/agents"
           />
         </StaggerItem>
         <StaggerItem>
@@ -487,6 +490,7 @@ export default function DashboardPage() {
             sub={evidenceSub}
             variant="navy"
             icon={<FileCheck className="w-4 h-4" />}
+            href="/evidence"
           />
         </StaggerItem>
         <StaggerItem>
@@ -503,6 +507,7 @@ export default function DashboardPage() {
             sub={`${donorsCount.toLocaleString()} donors via M-Pesa`}
             variant="green"
             icon={<HandCoins className="w-4 h-4" />}
+            href="/donations"
           />
         </StaggerItem>
         <StaggerItem>
@@ -518,6 +523,7 @@ export default function DashboardPage() {
             sub={`${complianceAlertCount} items need attention`}
             variant="orange"
             icon={<ShieldCheck className="w-4 h-4" />}
+            href="/compliance"
           />
         </StaggerItem>
       </StaggerContainer>

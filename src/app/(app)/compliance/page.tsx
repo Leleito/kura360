@@ -383,6 +383,7 @@ export default function CompliancePage() {
   const activeCampaignId = campaign?.id ?? null;
 
   const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pass' | 'warning' | 'fail'>('all');
   const [loading, setLoading] = useState(false);
 
   // Compliance data state (defaults to mock data values)
@@ -514,10 +515,11 @@ export default function CompliancePage() {
     : 0;
 
   const categories = ['all', ...Array.from(new Set(activeComplianceChecks.map((c) => c.category)))];
-  const filtered =
-    filterCategory === 'all'
-      ? activeComplianceChecks
-      : activeComplianceChecks.filter((c) => c.category === filterCategory);
+  const filtered = activeComplianceChecks.filter((c) => {
+    if (filterCategory !== 'all' && c.category !== filterCategory) return false;
+    if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+    return true;
+  });
 
   const spendingPercent = spendingLimit > 0 ? Math.round((totalSpent / spendingLimit) * 100) : 0;
 
@@ -599,6 +601,7 @@ export default function CompliancePage() {
               sub={`of ${activeComplianceChecks.length} total checks`}
               variant="green"
               icon={<CheckCircle2 className="h-4 w-4" />}
+              onClick={() => setFilterStatus(filterStatus === 'pass' ? 'all' : 'pass')}
             />
             <StatCard
               label="Warnings"
@@ -611,6 +614,7 @@ export default function CompliancePage() {
               sub="Require attention"
               variant="orange"
               icon={<AlertTriangle className="h-4 w-4" />}
+              onClick={() => setFilterStatus(filterStatus === 'warning' ? 'all' : 'warning')}
             />
             <StatCard
               label="Violations"
@@ -623,6 +627,7 @@ export default function CompliancePage() {
               sub="Immediate action needed"
               variant="red"
               icon={<XCircle className="h-4 w-4" />}
+              onClick={() => setFilterStatus(filterStatus === 'fail' ? 'all' : 'fail')}
             />
           </div>
 

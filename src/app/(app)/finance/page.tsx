@@ -444,7 +444,7 @@ export default function FinancePage() {
       {/* ---- 4 Premium Stat Cards ---- */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <FadeIn delay={0.05} direction="up">
-          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/finance/transactions" className="block bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer no-underline">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Total Budget
@@ -460,11 +460,11 @@ export default function FinancePage() {
               className="text-lg sm:text-2xl font-extrabold text-navy tabular-nums block"
             />
             <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">ECFA statutory ceiling</p>
-          </div>
+          </Link>
         </FadeIn>
 
         <FadeIn delay={0.1} direction="up">
-          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/finance/transactions" className="block bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer no-underline">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Total Spent
@@ -481,11 +481,11 @@ export default function FinancePage() {
             <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {utilPct}% of limit used
             </p>
-          </div>
+          </Link>
         </FadeIn>
 
         <FadeIn delay={0.15} direction="up">
-          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/compliance" className="block bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer no-underline">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Remaining
@@ -502,12 +502,12 @@ export default function FinancePage() {
             <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {percentage(Math.max(0, budgetRemaining), spendingLimit)}% available
             </p>
-          </div>
+          </Link>
         </FadeIn>
 
         <FadeIn delay={0.2} direction="up">
-          <div className={cn(
-            "bg-white rounded-2xl p-3 sm:p-5 border shadow-sm hover:shadow-md transition-shadow",
+          <Link href="/finance/transactions" className={cn(
+            "block bg-white rounded-2xl p-3 sm:p-5 border shadow-sm hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer no-underline",
             pendingApprovals > 0 ? "border-orange/30" : "border-surface-border"
           )}>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -532,7 +532,7 @@ export default function FinancePage() {
             <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {pendingApprovals > 0 ? "Requires review" : "All clear"}
             </p>
-          </div>
+          </Link>
         </FadeIn>
       </div>
 

@@ -618,6 +618,7 @@ export default function DonationsPage() {
             sub={`${MOCK_DONATIONS.length} donations recorded`}
             variant="green"
             icon={<HandCoins className="h-4 w-4" />}
+            onClick={() => setModalOpen(true)}
           />
         </StaggerItem>
         <StaggerItem>
@@ -632,6 +633,7 @@ export default function DonationsPage() {
             sub="KYC-verified individuals"
             variant="blue"
             icon={<Users className="h-4 w-4" />}
+            onClick={() => { setKycFilter('verified'); setMethodFilter(''); setComplianceFilter(''); }}
           />
         </StaggerItem>
         <StaggerItem>
@@ -647,6 +649,7 @@ export default function DonationsPage() {
             sub={`${mpesaDonations.length} of ${MOCK_DONATIONS.length} via M-Pesa`}
             variant="green"
             icon={<Smartphone className="h-4 w-4" />}
+            onClick={() => { setMethodFilter('mpesa'); setKycFilter(''); setComplianceFilter(''); }}
           />
         </StaggerItem>
         <StaggerItem>
@@ -662,6 +665,7 @@ export default function DonationsPage() {
             sub={`${compliantCount} of ${MOCK_DONATIONS.length} compliant`}
             variant={complianceRate >= 90 ? 'green' : complianceRate >= 70 ? 'orange' : 'red'}
             icon={<ShieldCheck className="h-4 w-4" />}
+            onClick={() => { setComplianceFilter('flagged'); setMethodFilter(''); setKycFilter(''); }}
           />
         </StaggerItem>
       </StaggerContainer>

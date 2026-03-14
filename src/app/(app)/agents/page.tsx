@@ -468,13 +468,22 @@ export default function AgentsPage() {
       {/* Summary Stats with AnimatedCounter */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Agents', value: totalAgents, sub: 'Registered', icon: Users, color: 'text-navy', borderColor: 'border-l-[#0F2A44]' },
-          { label: 'Deployed', value: deployedCount, sub: `${percentage(deployedCount, totalAgents)}% of total`, icon: Rocket, color: 'text-blue', borderColor: 'border-l-[#2E75B6]' },
-          { label: 'Active Check-ins', value: checkedInCount, sub: `${percentage(checkedInCount, deployedCount)}% of deployed`, icon: CheckCircle2, color: 'text-green', borderColor: 'border-l-[#1D6B3F]' },
-          { label: 'Pending Assignment', value: pendingCount, sub: 'Awaiting deployment', icon: Clock, color: 'text-orange', borderColor: 'border-l-[#ED8936]' },
+          { label: 'Total Agents', value: totalAgents, sub: 'Registered', icon: Users, color: 'text-navy', borderColor: 'border-l-[#0F2A44]', filter: 'all' as const },
+          { label: 'Deployed', value: deployedCount, sub: `${percentage(deployedCount, totalAgents)}% of total`, icon: Rocket, color: 'text-blue', borderColor: 'border-l-[#2E75B6]', filter: 'deployed' as const },
+          { label: 'Active Check-ins', value: checkedInCount, sub: `${percentage(checkedInCount, deployedCount)}% of deployed`, icon: CheckCircle2, color: 'text-green', borderColor: 'border-l-[#1D6B3F]', filter: 'checked-in' as const },
+          { label: 'Pending Assignment', value: pendingCount, sub: 'Awaiting deployment', icon: Clock, color: 'text-orange', borderColor: 'border-l-[#ED8936]', filter: 'pending' as const },
         ].map((stat, i) => (
           <FadeIn key={stat.label} delay={i * 0.1} direction="up">
-            <div className={cn('bg-white rounded-xl p-4 border border-surface-border border-l-4', stat.borderColor)}>
+            <button
+              type="button"
+              onClick={() => setActiveStatus(activeStatus === stat.filter ? 'all' : stat.filter)}
+              className={cn(
+                'w-full text-left bg-white rounded-xl p-4 border border-surface-border border-l-4 transition-all duration-200',
+                'hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] cursor-pointer hover:scale-[1.01] active:scale-[0.99]',
+                activeStatus === stat.filter && stat.filter !== 'all' && 'ring-2 ring-blue/20',
+                stat.borderColor
+              )}
+            >
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wide">
                   {stat.label}
@@ -487,7 +496,7 @@ export default function AgentsPage() {
                 formatter={(v) => Math.round(v).toLocaleString()}
               />
               <p className="text-[10px] text-text-tertiary mt-1">{stat.sub}</p>
-            </div>
+            </button>
           </FadeIn>
         ))}
       </div>
