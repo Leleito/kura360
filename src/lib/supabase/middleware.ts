@@ -30,9 +30,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // DEV ONLY: bypass auth for local development preview
+  const bypassAuth = process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
+
   // Redirect unauthenticated users trying to access protected routes
   if (
     !user &&
+    !bypassAuth &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     request.nextUrl.pathname !== "/"

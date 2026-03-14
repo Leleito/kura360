@@ -87,14 +87,14 @@ export function TopBar() {
           </div>
 
           {/* Compliance badge */}
-          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-[#E2E8F0]">
+          <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-[#E2E8F0]">
             <div
-              className="px-2.5 py-1 rounded-md text-[10px]"
+              className="px-2.5 py-1 rounded-md text-[10px] whitespace-nowrap"
               style={{ background: '#E8F5E9', color: '#1D6B3F', fontWeight: 700 }}
             >
               COMPLIANT
             </div>
-            <span className="text-[11px] text-[#A0AEC0] hidden md:inline">Score: 94%</span>
+            <span className="text-[11px] text-[#A0AEC0] hidden xl:inline whitespace-nowrap">Score: 94%</span>
           </div>
         </div>
       </header>

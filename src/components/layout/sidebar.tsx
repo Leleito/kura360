@@ -184,8 +184,8 @@ export function Sidebar() {
           </form>
         </div>
 
-        {/* Bottom user */}
-        <div className="border-t border-white/5 p-3 flex-shrink-0">
+        {/* Bottom user — extra bottom padding on mobile to clear the bottom nav */}
+        <div className="border-t border-white/5 p-3 pb-20 lg:pb-3 flex-shrink-0">
           <div
             className={`flex items-center gap-3 px-2 py-2 rounded-lg ${
               collapsed ? 'justify-center' : ''
@@ -221,7 +221,7 @@ export function MobileBottomNav() {
     pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] safe-area-bottom">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="flex items-center justify-around h-14 px-1">
         {MOBILE_NAV.map((item) => {
           const active = isActive(item.href);

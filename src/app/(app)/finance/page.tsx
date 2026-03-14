@@ -33,7 +33,7 @@ import {
 import { AnimatedCounter } from "@/components/premium/animated-counter";
 import { FadeIn } from "@/components/premium/fade-in";
 import { Badge } from "@/components/ui/badge";
-import { formatKES, formatDateShort, cn, percentage } from "@/lib/utils";
+import { formatKES, formatKESCompact, formatDateShort, cn, percentage } from "@/lib/utils";
 import {
   ECFA_CATEGORIES,
   ECFA_SPENDING_LIMIT,
@@ -442,63 +442,64 @@ export default function FinancePage() {
       </FadeIn>
 
       {/* ---- 4 Premium Stat Cards ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <FadeIn delay={0.05} direction="up">
-          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Total Budget
               </p>
-              <div className="h-8 w-8 rounded-lg bg-blue/10 flex items-center justify-center">
-                <Wallet size={16} className="text-blue" />
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue/10 flex items-center justify-center">
+                <Wallet size={14} className="text-blue sm:hidden" />
+                <Wallet size={16} className="text-blue hidden sm:block" />
               </div>
             </div>
             <AnimatedCounter
               value={spendingLimit}
-              formatter={(v) => formatKES(Math.round(v))}
-              className="text-2xl font-extrabold text-navy tabular-nums block"
+              formatter={(v) => formatKESCompact(Math.round(v))}
+              className="text-lg sm:text-2xl font-extrabold text-navy tabular-nums block"
             />
-            <p className="text-[10px] text-text-tertiary mt-1.5">ECFA statutory ceiling</p>
+            <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">ECFA statutory ceiling</p>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.1} direction="up">
-          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Total Spent
               </p>
-              <div className="h-8 w-8 rounded-lg bg-green/10 flex items-center justify-center">
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-green/10 flex items-center justify-center">
                 <Receipt size={16} className="text-green" />
               </div>
             </div>
             <AnimatedCounter
               value={totalSpent}
-              formatter={(v) => formatKES(Math.round(v))}
-              className="text-2xl font-extrabold text-green tabular-nums block"
+              formatter={(v) => formatKESCompact(Math.round(v))}
+              className="text-lg sm:text-2xl font-extrabold text-green tabular-nums block"
             />
-            <p className="text-[10px] text-text-tertiary mt-1.5">
+            <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {utilPct}% of limit used
             </p>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.15} direction="up">
-          <div className="bg-white rounded-2xl p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+          <div className="bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Remaining
               </p>
-              <div className="h-8 w-8 rounded-lg bg-navy/10 flex items-center justify-center">
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-navy/10 flex items-center justify-center">
                 <TrendingDown size={16} className="text-navy" />
               </div>
             </div>
             <AnimatedCounter
               value={Math.max(0, budgetRemaining)}
-              formatter={(v) => formatKES(Math.round(v))}
-              className="text-2xl font-extrabold text-navy tabular-nums block"
+              formatter={(v) => formatKESCompact(Math.round(v))}
+              className="text-lg sm:text-2xl font-extrabold text-navy tabular-nums block"
             />
-            <p className="text-[10px] text-text-tertiary mt-1.5">
+            <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {percentage(Math.max(0, budgetRemaining), spendingLimit)}% available
             </p>
           </div>
@@ -506,15 +507,15 @@ export default function FinancePage() {
 
         <FadeIn delay={0.2} direction="up">
           <div className={cn(
-            "bg-white rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow",
+            "bg-white rounded-2xl p-3 sm:p-5 border shadow-sm hover:shadow-md transition-shadow",
             pendingApprovals > 0 ? "border-orange/30" : "border-surface-border"
           )}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                 Pending Approvals
               </p>
               <div className={cn(
-                "h-8 w-8 rounded-lg flex items-center justify-center",
+                "h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center",
                 pendingApprovals > 0 ? "bg-orange/10" : "bg-green/10"
               )}>
                 {pendingApprovals > 0 ? (
@@ -526,9 +527,9 @@ export default function FinancePage() {
             </div>
             <AnimatedCounter
               value={pendingApprovals}
-              className="text-2xl font-extrabold text-orange tabular-nums block"
+              className="text-lg sm:text-2xl font-extrabold text-orange tabular-nums block"
             />
-            <p className="text-[10px] text-text-tertiary mt-1.5">
+            <p className="text-[9px] sm:text-[10px] text-text-tertiary mt-1 sm:mt-1.5">
               {pendingApprovals > 0 ? "Requires review" : "All clear"}
             </p>
           </div>

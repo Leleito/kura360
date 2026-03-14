@@ -203,11 +203,24 @@ function SpendingTooltip({
 }
 
 // ── Pie Chart Custom Label ──
-function renderPieLabel(props: { name?: string; percent?: number }) {
+function renderPieLabel(props: {
+  name?: string;
+  percent?: number;
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  x?: number;
+  y?: number;
+}) {
   const name = props.name ?? "";
   const percent = props.percent ?? 0;
-  if (percent < 0.05) return null;
-  return `${name} ${(percent * 100).toFixed(0)}%`;
+  if (percent < 0.08) return null; // hide very small slices
+  const pct = `${(percent * 100).toFixed(0)}%`;
+  // Abbreviate long names on small containers
+  const short =
+    name.length > 8 ? name.slice(0, 7) + "…" : name;
+  return `${short} ${pct}`;
 }
 
 // ── Status badge mapping ──
@@ -603,18 +616,19 @@ export default function DashboardPage() {
             <p className="text-[10px] text-text-tertiary mb-2">
               Total: {formatKES(categoryTotal)}
             </p>
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
                   data={categoryData}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
+                  cy="45%"
+                  innerRadius={40}
+                  outerRadius={65}
                   paddingAngle={3}
                   dataKey="value"
                   label={renderPieLabel}
                   strokeWidth={0}
+                  style={{ fontSize: 10 }}
                 >
                   {categoryData.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />

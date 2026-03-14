@@ -15,6 +15,19 @@ export function formatKES(amount: number): string {
   }).format(amount);
 }
 
+/** Compact KES formatter for tight spaces (e.g. "Ksh 35M", "Ksh 4.7M", "Ksh 850K") */
+export function formatKESCompact(amount: number): string {
+  if (amount >= 1_000_000) {
+    const m = amount / 1_000_000;
+    return `Ksh ${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (amount >= 1_000) {
+    const k = amount / 1_000;
+    return `Ksh ${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
+  }
+  return `Ksh ${amount.toLocaleString()}`;
+}
+
 /** Format Kenya phone number */
 export function formatPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
