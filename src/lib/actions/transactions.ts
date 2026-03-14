@@ -195,6 +195,73 @@ export async function deleteTransaction(
   }
 }
 
+/** Get 7-day spending trend for the dashboard chart */
+export async function getSpendingTrend(
+  campaignId: string,
+  days: number = 7
+): Promise<{ data: { day: string; amount: number; donations: number }[]; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const result: { day: string; amount: number; donations: number }[] = [];
+
+    // Build date range for the past N days
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      result.push({ day: dayNames[date.getDay()], amount: 0, donations: 0 });
+
+      // This is filled below; store dateStr for lookup
+      (result[result.length - 1] as { day: string; amount: number; donations: number; _date?: string })._date = dateStr;
+    }
+
+    // Fetch expenses for the date range
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    const startStr = startDate.toISOString().split('T')[0];
+
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('transaction_date, amount_kes, type')
+      .eq('campaign_id', campaignId)
+      .gte('transaction_date', startStr)
+      .order('transaction_date', { ascending: true });
+
+    // Fetch donations for the same range
+    const { data: donations } = await supabase
+      .from('donations')
+      .select('created_at, amount_kes')
+      .eq('campaign_id', campaignId)
+      .gte('created_at', startStr + 'T00:00:00');
+
+    // Aggregate transactions by day
+    for (const t of transactions ?? []) {
+      const entry = result.find((r) => (r as { _date?: string })._date === t.transaction_date);
+      if (entry && t.type === 'expense') {
+        entry.amount += t.amount_kes;
+      }
+    }
+
+    // Aggregate donations by day
+    for (const d of donations ?? []) {
+      const dateStr = d.created_at?.split('T')[0];
+      const entry = result.find((r) => (r as { _date?: string })._date === dateStr);
+      if (entry) {
+        entry.donations += d.amount_kes;
+      }
+    }
+
+    // Clean up internal _date field
+    const cleaned = result.map(({ day, amount, donations }) => ({ day, amount, donations }));
+
+    return { data: cleaned };
+  } catch (err) {
+    return { data: [], error: String(err) };
+  }
+}
+
 /** Get finance summary with aggregated data */
 export async function getFinanceSummary(
   campaignId: string

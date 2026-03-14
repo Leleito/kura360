@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { EvidenceForm } from '@/components/forms/evidence-form';
 import {
   Shield,
   ShieldCheck,
@@ -19,7 +20,6 @@ import {
   Calendar,
   Hash,
   ChevronRight,
-  X,
 } from 'lucide-react';
 import {
   PieChart,
@@ -36,7 +36,7 @@ import { cn, formatDateShort } from '@/lib/utils';
 import { useCampaign } from '@/lib/campaign-context';
 import { getEvidenceItems } from '@/lib/actions/evidence';
 import type { EvidenceType, EvidenceStatus, KenyaCounty } from '@/lib/validators/evidence';
-import { EVIDENCE_TYPES, EVIDENCE_STATUSES, KENYA_COUNTIES } from '@/lib/validators/evidence';
+import { EVIDENCE_TYPES, EVIDENCE_STATUSES } from '@/lib/validators/evidence';
 import type { Tables } from '@/types/database';
 
 // ---------------------------------------------------------------------------
@@ -259,67 +259,6 @@ function mapDbEvidenceToUI(dbItem: Tables<'evidence_items'>): EvidenceItem {
         ? 'bg-[#E53E3E]'
         : THUMBNAIL_COLORS[evidenceType] ?? 'bg-[#2E75B6]',
   };
-}
-
-// ---------------------------------------------------------------------------
-// Upload Modal
-// ---------------------------------------------------------------------------
-
-function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-surface-border">
-          <h2 className="text-sm font-bold text-navy">Upload Evidence</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-bg text-text-tertiary transition-colors" aria-label="Close">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        {/* TODO: Wire form submission to createEvidenceItem() server action with file upload in Phase 4 */}
-        <form className="p-5 space-y-4" onSubmit={(e) => e.preventDefault()}>
-          <div>
-            <label className="block text-xs font-semibold text-text-secondary mb-1">Title <span className="text-[#E53E3E]">*</span></label>
-            <input type="text" placeholder="e.g. Rally Photo -- Uhuru Park" className="w-full px-3 py-2.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Type <span className="text-[#E53E3E]">*</span></label>
-              <select className="w-full px-3 py-2.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue bg-white">
-                <option value="">Select type</option>
-                {EVIDENCE_TYPES.map((t) => (<option key={t} value={t}>{TYPE_LABELS[t]}</option>))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">County <span className="text-[#E53E3E]">*</span></label>
-              <select className="w-full px-3 py-2.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue bg-white">
-                <option value="">Select county</option>
-                {KENYA_COUNTIES.map((c) => (<option key={c} value={c}>{c}</option>))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
-            <textarea rows={3} placeholder="Describe the evidence context..." className="w-full px-3 py-2.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue resize-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-text-secondary mb-1">File <span className="text-[#E53E3E]">*</span></label>
-            <div className="border-2 border-dashed border-surface-border rounded-xl p-8 text-center hover:border-blue/40 transition-colors cursor-pointer">
-              <Upload className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-              <p className="text-xs text-text-secondary font-medium">Drag and drop or click to browse</p>
-              <p className="text-[10px] text-text-tertiary mt-1">Photos, videos, documents, or audio (max 50 MB)</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 text-xs font-semibold text-text-secondary rounded-lg hover:bg-surface-bg transition-colors">Cancel</button>
-            <button type="submit" className="px-4 py-2.5 text-xs font-bold text-white bg-[#1D6B3F] rounded-lg hover:bg-[#1D6B3F]/90 transition-colors">Upload & Hash</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -728,7 +667,11 @@ export default function EvidencePage() {
       )}
 
       {/* Upload Modal */}
-      <UploadModal open={showUploadModal} onClose={() => setShowUploadModal(false)} />
+      <EvidenceForm
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={refreshEvidence}
+      />
     </div>
   );
 }

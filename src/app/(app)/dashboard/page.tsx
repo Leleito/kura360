@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { formatKES } from "@/lib/utils";
 import { useCampaign } from "@/lib/campaign-context";
-import { getFinanceSummary, type FinanceSummary } from "@/lib/actions/transactions";
+import { getFinanceSummary, getSpendingTrend, type FinanceSummary } from "@/lib/actions/transactions";
 import { getAgentStats, type AgentStats } from "@/lib/actions/agents";
 import { getEvidenceStats } from "@/lib/actions/evidence";
 import { getDonationStats, type DonationStats } from "@/lib/actions/donations";
@@ -265,18 +265,20 @@ export default function DashboardPage() {
     async function fetchDashboard() {
       setLoading(true);
       try {
-        const [finance, agents, evidence, donations, compliance] = await Promise.all([
+        const [finance, agents, evidence, donations, compliance, trend] = await Promise.all([
           getFinanceSummary(campaignId),
           getAgentStats(campaignId),
           getEvidenceStats(campaignId),
           getDonationStats(campaignId),
           getComplianceStatus(campaignId),
+          getSpendingTrend(campaignId),
         ]);
         if (!finance.error) setFinanceSummary(finance);
         if (!agents.error) setAgentData(agents);
         if (!evidence.error) setEvidenceData(evidence);
         if (!donations.error) setDonationData(donations);
         if (!compliance.error) setComplianceData(compliance);
+        if (!trend.error && trend.data.length > 0) setSpendingTrend(trend.data);
       } catch (err) {
         console.error("[Dashboard] Failed to fetch data:", err);
       } finally {
@@ -358,8 +360,8 @@ export default function DashboardPage() {
     ? complianceData.categorySpending
     : null;
 
-  // Spending trend (no server action for this yet -- keep mock)
-  const spendingTrend = DEFAULT_SPENDING_TREND;
+  // Spending trend data
+  const [spendingTrend, setSpendingTrend] = useState(DEFAULT_SPENDING_TREND);
 
   const kesFormatter = (v: number) =>
     new Intl.NumberFormat("en-KE", {
