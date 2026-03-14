@@ -17,6 +17,8 @@ import {
   Banknote,
   Building2,
   Receipt,
+  Upload,
+  ExternalLink,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -57,6 +59,9 @@ import {
   type KYCStatus,
   type ComplianceStatus,
 } from '@/lib/validators/donations';
+import { CSVImportForm } from '@/components/forms/csv-import-form';
+import { useCampaign } from '@/lib/campaign-context';
+import Link from 'next/link';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -364,6 +369,7 @@ function InflowTooltip({ active, payload, label }: { active?: boolean; payload?:
 
 export default function DonationsPage() {
   const router = useRouter();
+  const { campaign } = useCampaign();
 
   /* ---- Filters ---- */
   const [search, setSearch] = useState('');
@@ -371,8 +377,9 @@ export default function DonationsPage() {
   const [kycFilter, setKycFilter] = useState('');
   const [complianceFilter, setComplianceFilter] = useState('');
 
-  /* ---- Modal ---- */
+  /* ---- Modals ---- */
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     donor_name: '',
     donor_phone: '',
@@ -594,10 +601,24 @@ export default function DonationsPage() {
               Track donations, enforce ECFA compliance, and manage donor KYC verification
             </p>
           </div>
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Record Donation
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </Button>
+            <Link
+              href="/donate"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-surface-border text-text-secondary hover:bg-surface-bg transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Donor Portal
+            </Link>
+            <Button onClick={() => setModalOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Record Donation
+            </Button>
+          </div>
         </div>
       </FadeIn>
 
@@ -1087,6 +1108,13 @@ export default function DonationsPage() {
           </div>
         </form>
       </Modal>
+
+      {/* CSV Import Modal (Option B) */}
+      <CSVImportForm
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        campaignId={campaign?.id ?? ''}
+      />
     </div>
   );
 }
