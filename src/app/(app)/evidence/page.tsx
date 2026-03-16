@@ -34,6 +34,7 @@ import type { Column } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatDateShort } from '@/lib/utils';
 import { useCampaign } from '@/lib/campaign-context';
+import { RoleGate } from '@/lib/rbac';
 import { getEvidenceItems } from '@/lib/actions/evidence';
 import type { EvidenceType, EvidenceStatus, KenyaCounty } from '@/lib/validators/evidence';
 import { EVIDENCE_TYPES, EVIDENCE_STATUSES } from '@/lib/validators/evidence';
@@ -482,13 +483,15 @@ export default function EvidencePage() {
               Tamper-proof evidence with SHA-256 integrity verification
             </p>
           </div>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#1D6B3F] text-white text-xs font-bold rounded-lg hover:bg-[#1D6B3F]/90 transition-colors shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Upload Evidence
-          </button>
+          <RoleGate permission="evidence:create">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#1D6B3F] text-white text-xs font-bold rounded-lg hover:bg-[#1D6B3F]/90 transition-colors shadow-sm"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload Evidence
+            </button>
+          </RoleGate>
         </div>
       </FadeIn>
 

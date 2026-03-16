@@ -36,6 +36,7 @@ import {
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatPhone, formatDate, percentage } from '@/lib/utils';
 import { useCampaign } from '@/lib/campaign-context';
+import { RoleGate } from '@/lib/rbac';
 import { useUser } from '@/lib/auth/hooks';
 import { getAgents, createAgent } from '@/lib/actions/agents';
 import type { AgentStatus } from '@/lib/validators/agents';
@@ -458,10 +459,12 @@ export default function AgentsPage() {
               Deploy, track, and coordinate polling station agents across all 47 counties
             </p>
           </div>
-          <Button onClick={() => setShowRegisterModal(true)}>
-            <UserPlus className="h-4 w-4" />
-            Register Agent
-          </Button>
+          <RoleGate permission="agents:create">
+            <Button onClick={() => setShowRegisterModal(true)}>
+              <UserPlus className="h-4 w-4" />
+              Register Agent
+            </Button>
+          </RoleGate>
         </div>
       </FadeIn>
 

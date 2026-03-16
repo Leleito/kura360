@@ -41,6 +41,7 @@ import {
   type TransactionStatus,
 } from "@/lib/validators/finance";
 import { useCampaign } from "@/lib/campaign-context";
+import { RoleGate } from '@/lib/rbac';
 import { getFinanceSummary, getTransactions, type FinanceSummary } from "@/lib/actions/transactions";
 import { exportTransactionsCSV } from "@/lib/export";
 
@@ -430,13 +431,15 @@ export default function FinancePage() {
               <Download size={15} />
               Export CSV
             </button>
-            <Link
-              href="/finance/transactions"
-              className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
-            >
-              <Plus size={15} />
-              Record Transaction
-            </Link>
+            <RoleGate permission="transactions:create">
+              <Link
+                href="/finance/transactions"
+                className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+              >
+                <Plus size={15} />
+                Record Transaction
+              </Link>
+            </RoleGate>
           </div>
         </div>
       </FadeIn>

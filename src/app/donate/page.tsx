@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Smartphone,
@@ -15,6 +16,7 @@ import {
 import Link from 'next/link';
 import { KuraLogo } from '@/components/ui/kura-logo';
 import { cn, formatKES } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 import { ECFA_ANONYMOUS_THRESHOLD, ECFA_INDIVIDUAL_LIMIT } from '@/lib/validators/donations';
 
 /* -------------------------------------------------------------------------- */
@@ -24,17 +26,44 @@ import { ECFA_ANONYMOUS_THRESHOLD, ECFA_INDIVIDUAL_LIMIT } from '@/lib/validator
 type Step = 'info' | 'payment' | 'confirm' | 'success';
 type PaymentMethod = 'mpesa' | 'card';
 
-const CAMPAIGN_NAME = 'Gubernatorial Campaign 2027';
-const CAMPAIGN_TAGLINE = 'Support transparent, accountable governance';
+const DEFAULT_CAMPAIGN_NAME = 'Campaign Donation';
+const DEFAULT_CAMPAIGN_TAGLINE = 'Support transparent, accountable governance';
 
 /* -------------------------------------------------------------------------- */
 /*  Donor Portal Page                                                          */
 /* -------------------------------------------------------------------------- */
 
 export default function DonatePage() {
+  const searchParams = useSearchParams();
+  const slug = searchParams.get('campaign');
+
   const [step, setStep] = useState<Step>('info');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Campaign resolution from slug
+  const [campaignId, setCampaignId] = useState<string>('default');
+  const [campaignName, setCampaignName] = useState(DEFAULT_CAMPAIGN_NAME);
+  const [campaignTagline, setCampaignTagline] = useState(DEFAULT_CAMPAIGN_TAGLINE);
+
+  useEffect(() => {
+    async function resolveCampaign() {
+      if (!slug) return;
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('campaigns')
+        .select('id, candidate_name, position, party')
+        .eq('donation_portal_slug', slug)
+        .eq('is_active', true)
+        .single();
+      if (data) {
+        setCampaignId(data.id);
+        setCampaignName(`${data.candidate_name} — ${data.position}${data.party ? ` (${data.party})` : ''}`);
+        setCampaignTagline('Support transparent, accountable governance');
+      }
+    }
+    resolveCampaign();
+  }, [slug]);
 
   // Form state
   const [donorName, setDonorName] = useState('');
@@ -75,7 +104,7 @@ export default function DonatePage() {
           body: JSON.stringify({
             phone: donorPhone,
             amount: parsedAmount,
-            campaignId: 'default', // Would come from URL param in production
+            campaignId,
             donorName: anonymous ? undefined : donorName,
           }),
         });
@@ -136,8 +165,8 @@ export default function DonatePage() {
             <Heart className="h-3.5 w-3.5" />
             Donate
           </div>
-          <h1 className="text-2xl font-bold text-[#0F2A44]">{CAMPAIGN_NAME}</h1>
-          <p className="text-sm text-[#64748B] mt-1">{CAMPAIGN_TAGLINE}</p>
+          <h1 className="text-2xl font-bold text-[#0F2A44]">{campaignName}</h1>
+          <p className="text-sm text-[#64748B] mt-1">{campaignTagline}</p>
         </motion.div>
 
         {/* Step indicator */}

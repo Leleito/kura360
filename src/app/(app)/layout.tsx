@@ -1,5 +1,6 @@
 import { LayoutProvider } from '@/components/layout/layout-context';
 import { CampaignProvider } from '@/lib/campaign-context';
+import { RoleProvider } from '@/lib/rbac/use-role';
 import { ToastProvider } from '@/components/ui/toast';
 import { Sidebar, MobileBottomNav } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/top-bar';
@@ -7,6 +8,7 @@ import { TopBar } from '@/components/layout/top-bar';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <CampaignProvider>
+      <RoleProvider>
       <ToastProvider>
         <LayoutProvider>
           <div className="flex h-screen overflow-hidden bg-[#F2F5F9]">
@@ -21,6 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </LayoutProvider>
       </ToastProvider>
+      </RoleProvider>
     </CampaignProvider>
   );
 }

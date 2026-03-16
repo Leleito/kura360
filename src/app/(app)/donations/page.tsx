@@ -61,6 +61,7 @@ import {
 } from '@/lib/validators/donations';
 import { CSVImportForm } from '@/components/forms/csv-import-form';
 import { useCampaign } from '@/lib/campaign-context';
+import { RoleGate } from '@/lib/rbac';
 import Link from 'next/link';
 
 /* -------------------------------------------------------------------------- */
@@ -602,10 +603,12 @@ export default function DonationsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </Button>
+            <RoleGate permission="donations:import">
+              <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
+                <Upload className="h-4 w-4" />
+                Import CSV
+              </Button>
+            </RoleGate>
             <Link
               href="/donate"
               target="_blank"
@@ -614,10 +617,12 @@ export default function DonationsPage() {
               <ExternalLink className="h-3.5 w-3.5" />
               Donor Portal
             </Link>
-            <Button onClick={() => setModalOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Record Donation
-            </Button>
+            <RoleGate permission="donations:create">
+              <Button onClick={() => setModalOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Record Donation
+              </Button>
+            </RoleGate>
           </div>
         </div>
       </FadeIn>
