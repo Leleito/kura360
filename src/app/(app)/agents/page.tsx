@@ -83,141 +83,22 @@ const PIE_COLORS: Record<AgentStatus, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Mock data
+// County filter options (47 Kenyan counties)
 // ---------------------------------------------------------------------------
 
-const MOCK_AGENTS: Agent[] = [
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    full_name: 'Wanjiku Kamau',
-    phone: '+254712345001',
-    national_id: '32456789',
-    county: 'Nairobi',
-    constituency: 'Langata',
-    polling_station: 'Kibera Primary School',
-    status: 'checked-in',
-    last_check_in: '2026-02-27T06:42:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000002',
-    full_name: 'Odhiambo Otieno',
-    phone: '+254722345002',
-    national_id: '28765432',
-    county: 'Kisumu',
-    constituency: 'Kisumu Central',
-    polling_station: 'Oginga Odinga Grounds',
-    status: 'deployed',
-    last_check_in: '2026-02-27T05:30:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000003',
-    full_name: 'Amina Hassan',
-    phone: '+254733345003',
-    national_id: '34567890',
-    county: 'Mombasa',
-    constituency: 'Mvita',
-    polling_station: 'Majengo Community Hall',
-    status: 'active',
-    last_check_in: '2026-02-27T07:15:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000004',
-    full_name: 'Kipchoge Ruto',
-    phone: '+254745345004',
-    national_id: '29876543',
-    county: 'Uasin Gishu',
-    constituency: 'Ainabkoi',
-    polling_station: 'Eldoret ASK Grounds',
-    status: 'checked-in',
-    last_check_in: '2026-02-27T06:58:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000005',
-    full_name: 'Njeri Muthoni',
-    phone: '+254756345005',
-    national_id: '31234567',
-    county: 'Kiambu',
-    constituency: 'Thika Town',
-    polling_station: 'Thika Stadium Hall',
-    status: 'deployed',
-    last_check_in: '2026-02-26T16:20:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000006',
-    full_name: 'Barasa Wekesa',
-    phone: '+254712345006',
-    national_id: '27654321',
-    county: 'Nakuru',
-    constituency: 'Nakuru Town East',
-    polling_station: 'Afraha Stadium Annex',
-    status: 'inactive',
-    last_check_in: '2026-02-25T10:00:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000007',
-    full_name: 'Akinyi Ouma',
-    phone: '+254722345007',
-    national_id: '33456789',
-    county: 'Kisumu',
-    constituency: 'Nyando',
-    polling_station: 'Ahero Market Centre',
-    status: 'active',
-    last_check_in: '2026-02-27T07:02:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000008',
-    full_name: 'Mwangi Kariuki',
-    phone: '+254733345008',
-    national_id: '30123456',
-    county: 'Nairobi',
-    constituency: 'Westlands',
-    polling_station: 'Parklands Primary School',
-    status: 'checked-in',
-    last_check_in: '2026-02-27T06:35:00Z',
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000009',
-    full_name: 'Fatuma Ali',
-    phone: '+254745345009',
-    national_id: '35678901',
-    county: 'Mombasa',
-    constituency: 'Changamwe',
-    polling_station: 'Port Reitz Community Hall',
-    status: 'pending',
-    last_check_in: null,
-    photo_url: null,
-  },
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000010',
-    full_name: 'Kosgei Chebet',
-    phone: '+254756345010',
-    national_id: '26543210',
-    county: 'Uasin Gishu',
-    constituency: 'Kesses',
-    polling_station: 'University of Eldoret Gate',
-    status: 'deployed',
-    last_check_in: '2026-02-27T05:50:00Z',
-    photo_url: null,
-  },
+const KENYA_COUNTIES = [
+  'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu', 'Garissa',
+  'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho', 'Kiambu', 'Kilifi',
+  'Kirinyaga', 'Kisii', 'Kisumu', 'Kitui', 'Kwale', 'Laikipia', 'Lamu', 'Machakos',
+  'Makueni', 'Mandera', 'Marsabit', 'Meru', 'Migori', 'Mombasa', 'Murang\'a',
+  'Nairobi', 'Nakuru', 'Nandi', 'Narok', 'Nyamira', 'Nyandarua', 'Nyeri',
+  'Samburu', 'Siaya', 'Taita-Taveta', 'Tana River', 'Tharaka-Nithi', 'Trans-Nzoia',
+  'Turkana', 'Uasin Gishu', 'Vihiga', 'Wajir', 'West Pokot',
 ];
-
-// ---------------------------------------------------------------------------
-// County filter options (unique from mock)
-// ---------------------------------------------------------------------------
 
 const COUNTY_OPTIONS = [
   { value: '', label: 'All Counties' },
-  ...Array.from(new Set(MOCK_AGENTS.map((a) => a.county)))
-    .sort()
-    .map((c) => ({ value: c, label: c })),
+  ...KENYA_COUNTIES.map((c) => ({ value: c, label: c })),
 ];
 
 const FORM_COUNTY_OPTIONS = COUNTY_OPTIONS.filter((c) => c.value !== '');
@@ -252,7 +133,7 @@ export default function AgentsPage() {
   const { user } = useUser();
 
   // Agent data (falls back to mock)
-  const [agents, setAgents] = useState<Agent[]>(MOCK_AGENTS);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 

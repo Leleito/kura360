@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -62,6 +62,10 @@ import {
 import { CSVImportForm } from '@/components/forms/csv-import-form';
 import { useCampaign } from '@/lib/campaign-context';
 import { RoleGate } from '@/lib/rbac';
+import { getDonations } from '@/lib/actions/donations';
+import { useUser } from '@/lib/auth/hooks';
+import { createDonation } from '@/lib/actions/donations';
+import type { Tables } from '@/types/database';
 import Link from 'next/link';
 
 /* -------------------------------------------------------------------------- */
@@ -87,197 +91,50 @@ interface Donation {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Mock Data                                                                 */
+/*  DB → UI mapper                                                            */
 /* -------------------------------------------------------------------------- */
 
-const MOCK_DONATIONS: Donation[] = [
-  {
-    id: 'don_001',
-    donor_name: 'Grace Wanjiku Muthoni',
-    donor_phone: '+254712345678',
-    national_id: '28456712',
-    amount: 250_000,
-    method: 'mpesa',
-    reference: 'QJH7T2KXMR',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Business supporter — monthly pledge',
-    donated_at: '2026-02-27T09:30:00Z',
-    receipt_number: 'RCP-2026-0001',
-  },
-  {
-    id: 'don_002',
-    donor_name: 'Ochieng Otieno',
-    donor_phone: '+254723456789',
-    national_id: '31245890',
-    amount: 150_000,
-    method: 'bank',
-    reference: 'KCB-TRF-98271',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Equity Bank transfer — business supporter',
-    donated_at: '2026-02-26T14:15:00Z',
-    receipt_number: 'RCP-2026-0002',
-  },
-  {
-    id: 'don_003',
-    donor_name: 'Akinyi Nyambura',
-    donor_phone: '+254734567890',
-    national_id: '27893456',
-    amount: 75_000,
-    method: 'mpesa',
-    reference: 'RNL4P8VBZQ',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Recurring monthly contributor',
-    donated_at: '2026-02-25T11:45:00Z',
-    receipt_number: 'RCP-2026-0003',
-  },
-  {
-    id: 'don_004',
-    donor_name: 'Anonymous Donor',
-    donor_phone: '+254700000000',
-    national_id: '00000000',
-    amount: 8_000,
-    method: 'cash',
-    reference: '',
-    kyc_status: 'failed',
-    compliance: 'violation',
-    flagged_reason: 'Anonymous donation exceeds KES 5,000 ECFA threshold',
-    anonymous: true,
-    notes: 'Cash donation at Uhuru Gardens rally',
-    donated_at: '2026-02-24T16:20:00Z',
-    receipt_number: 'RCP-2026-0004',
-  },
-  {
-    id: 'don_005',
-    donor_name: 'Mutua Kioko',
-    donor_phone: '+254745678901',
-    national_id: '34567823',
-    amount: 100_000,
-    method: 'cheque',
-    reference: 'CHQ-00456',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Co-operative Bank cheque',
-    donated_at: '2026-02-23T10:00:00Z',
-    receipt_number: 'RCP-2026-0005',
-  },
-  {
-    id: 'don_006',
-    donor_name: 'Njeri Mwangi',
-    donor_phone: '+254756789012',
-    national_id: '29876543',
-    amount: 45_000,
-    method: 'mpesa',
-    reference: 'TYK9M3HDWF',
-    kyc_status: 'pending',
-    compliance: 'flagged',
-    flagged_reason: 'KYC verification incomplete',
-    anonymous: false,
-    notes: 'Awaiting ID verification',
-    donated_at: '2026-02-22T08:30:00Z',
-    receipt_number: 'RCP-2026-0006',
-  },
-  {
-    id: 'don_007',
-    donor_name: 'Kipchoge Ruto',
-    donor_phone: '+254767890123',
-    national_id: '25678934',
-    amount: 180_000,
-    method: 'bank',
-    reference: 'EQT-TRF-54382',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Equity Bank transfer',
-    donated_at: '2026-02-21T15:45:00Z',
-    receipt_number: 'RCP-2026-0007',
-  },
-  {
-    id: 'don_008',
-    donor_name: 'Fatuma Hassan',
-    donor_phone: '+254778901234',
-    national_id: '32145678',
-    amount: 25_000,
-    method: 'mpesa',
-    reference: 'BNX2L6JCPA',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Grassroots contribution — Mombasa chapter',
-    donated_at: '2026-02-20T12:10:00Z',
-    receipt_number: 'RCP-2026-0008',
-  },
-  {
-    id: 'don_009',
-    donor_name: 'Omondi Juma',
-    donor_phone: '+254789012345',
-    national_id: '27654321',
-    amount: 320_000,
-    method: 'bank',
-    reference: 'NCBA-TRF-11029',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'NCBA Bank transfer — construction magnate',
-    donated_at: '2026-02-19T09:00:00Z',
-    receipt_number: 'RCP-2026-0009',
-  },
-  {
-    id: 'don_010',
-    donor_name: 'Chebet Langat',
-    donor_phone: '+254790123456',
-    national_id: '30987654',
-    amount: 12_000,
-    method: 'mpesa',
-    reference: 'WSG5R1PMNE',
-    kyc_status: 'pending',
-    compliance: 'flagged',
-    flagged_reason: 'KYC verification incomplete',
-    anonymous: false,
-    notes: 'Eldoret supporter',
-    donated_at: '2026-02-18T17:30:00Z',
-    receipt_number: 'RCP-2026-0010',
-  },
-];
+type DbDonation = Tables<'donations'>;
 
-/* -------------------------------------------------------------------------- */
-/*  Donation Inflow Chart Data (last 30 days)                                 */
-/* -------------------------------------------------------------------------- */
+function inferMethod(d: DbDonation): DonationMethod {
+  if (d.source === 'mpesa' || d.source === 'c2b' || d.source === 'stk_push' || d.mpesa_ref) return 'mpesa';
+  if (d.source === 'bank') return 'bank';
+  if (d.source === 'cheque') return 'cheque';
+  if (d.source === 'cash') return 'cash';
+  // Default: if mpesa_ref exists → mpesa, otherwise manual/cash
+  return d.mpesa_ref ? 'mpesa' : 'cash';
+}
 
-const INFLOW_DATA = [
-  { date: 'Jan 30', amount: 45000 },
-  { date: 'Feb 1', amount: 82000 },
-  { date: 'Feb 3', amount: 15000 },
-  { date: 'Feb 5', amount: 120000 },
-  { date: 'Feb 7', amount: 65000 },
-  { date: 'Feb 9', amount: 38000 },
-  { date: 'Feb 11', amount: 195000 },
-  { date: 'Feb 13', amount: 72000 },
-  { date: 'Feb 15', amount: 55000 },
-  { date: 'Feb 17', amount: 30000 },
-  { date: 'Feb 19', amount: 320000 },
-  { date: 'Feb 20', amount: 25000 },
-  { date: 'Feb 21', amount: 180000 },
-  { date: 'Feb 22', amount: 45000 },
-  { date: 'Feb 23', amount: 100000 },
-  { date: 'Feb 24', amount: 8000 },
-  { date: 'Feb 25', amount: 75000 },
-  { date: 'Feb 26', amount: 150000 },
-  { date: 'Feb 27', amount: 250000 },
-];
+function mapDbDonationToUI(d: DbDonation): Donation {
+  return {
+    id: d.id,
+    donor_name: d.is_anonymous ? 'Anonymous Donor' : (d.donor_name ?? 'Unknown'),
+    donor_phone: d.donor_phone ?? '',
+    national_id: '',
+    amount: d.amount_kes,
+    method: inferMethod(d),
+    reference: d.mpesa_ref ?? '',
+    kyc_status: (d.kyc_status as KYCStatus) || 'pending',
+    compliance: (d.compliance_status as ComplianceStatus) || 'compliant',
+    flagged_reason: d.flagged_reason,
+    anonymous: d.is_anonymous,
+    notes: '',
+    donated_at: d.donated_at,
+    receipt_number: d.receipt_number ?? '',
+  };
+}
+
+/** Build inflow chart data from donation list (aggregate by day) */
+function buildInflowData(donations: Donation[]) {
+  const dayMap = new Map<string, number>();
+  for (const d of donations) {
+    const day = new Date(d.donated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    dayMap.set(day, (dayMap.get(day) ?? 0) + d.amount);
+  }
+  return Array.from(dayMap.entries())
+    .map(([date, amount]) => ({ date, amount }))
+    .slice(-20); // last 20 data points
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Method colors and chart data                                              */
@@ -371,6 +228,14 @@ function InflowTooltip({ active, payload, label }: { active?: boolean; payload?:
 export default function DonationsPage() {
   const router = useRouter();
   const { campaign } = useCampaign();
+  const { user } = useUser();
+  const activeCampaignId = campaign?.id;
+
+  /* ---- Data state ---- */
+  const [allDonations, setAllDonations] = useState<Donation[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   /* ---- Filters ---- */
   const [search, setSearch] = useState('');
@@ -392,9 +257,30 @@ export default function DonationsPage() {
     anonymous: false,
   });
 
+  /* ---- Fetch donations from Supabase ---- */
+  const refreshDonations = useCallback(async () => {
+    if (!activeCampaignId) return;
+    setLoading(true);
+    try {
+      const result = await getDonations(activeCampaignId, { pageSize: 200 });
+      if (result.data.length > 0) {
+        setAllDonations(result.data.map(mapDbDonationToUI));
+        setTotalCount(result.count);
+      }
+    } catch {
+      // keep existing data on error
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCampaignId]);
+
+  useEffect(() => {
+    refreshDonations();
+  }, [refreshDonations]);
+
   /* ---- Filtered data ---- */
   const filteredDonations = useMemo(() => {
-    return MOCK_DONATIONS.filter((d) => {
+    return allDonations.filter((d) => {
       if (search) {
         const q = search.toLowerCase();
         const matchesSearch =
@@ -409,20 +295,23 @@ export default function DonationsPage() {
       if (complianceFilter && d.compliance !== complianceFilter) return false;
       return true;
     });
-  }, [search, methodFilter, kycFilter, complianceFilter]);
+  }, [allDonations, search, methodFilter, kycFilter, complianceFilter]);
 
   /* ---- Summary stats ---- */
-  const totalAmount = MOCK_DONATIONS.reduce((sum, d) => sum + d.amount, 0);
-  const donorCount = new Set(MOCK_DONATIONS.filter((d) => !d.anonymous).map((d) => d.national_id)).size;
-  const mpesaDonations = MOCK_DONATIONS.filter((d) => d.method === 'mpesa');
-  const mpesaPercent = percentage(mpesaDonations.length, MOCK_DONATIONS.length);
-  const compliantCount = MOCK_DONATIONS.filter((d) => d.compliance === 'compliant').length;
-  const complianceRate = percentage(compliantCount, MOCK_DONATIONS.length);
+  const totalAmount = allDonations.reduce((sum, d) => sum + d.amount, 0);
+  const donorCount = new Set(allDonations.filter((d) => !d.anonymous).map((d) => d.donor_phone)).size;
+  const mpesaDonations = allDonations.filter((d) => d.method === 'mpesa');
+  const mpesaPercent = percentage(mpesaDonations.length, allDonations.length);
+  const compliantCount = allDonations.filter((d) => d.compliance === 'compliant').length;
+  const complianceRate = percentage(compliantCount, allDonations.length);
+
+  /* ---- Inflow chart data from real donations ---- */
+  const inflowData = useMemo(() => buildInflowData(allDonations), [allDonations]);
 
   /* ---- Method distribution for PieChart ---- */
   const methodDistribution = useMemo(() => {
     const counts: Record<DonationMethod, number> = { mpesa: 0, bank: 0, cash: 0, cheque: 0 };
-    MOCK_DONATIONS.forEach((d) => {
+    allDonations.forEach((d) => {
       counts[d.method] += d.amount;
     });
     return DONATION_METHODS.map((m) => ({
@@ -430,19 +319,19 @@ export default function DonationsPage() {
       value: counts[m],
       color: METHOD_COLORS[m],
     })).filter((d) => d.value > 0);
-  }, []);
+  }, [allDonations]);
 
   /* ---- Top donors ---- */
   const topDonors = useMemo(() => {
     const donorMap = new Map<string, { name: string; phone: string; total: number; count: number; kyc: KYCStatus }>();
-    for (const d of MOCK_DONATIONS) {
-      if (d.anonymous) continue;
-      const existing = donorMap.get(d.national_id);
+    for (const d of allDonations) {
+      if (d.anonymous || !d.donor_phone) continue;
+      const existing = donorMap.get(d.donor_phone);
       if (existing) {
         existing.total += d.amount;
         existing.count += 1;
       } else {
-        donorMap.set(d.national_id, {
+        donorMap.set(d.donor_phone, {
           name: d.donor_name,
           phone: d.donor_phone,
           total: d.amount,
@@ -454,12 +343,12 @@ export default function DonationsPage() {
     return Array.from(donorMap.values())
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
-  }, []);
+  }, [allDonations]);
 
   /* ---- ECFA Compliance Alerts ---- */
   const ecfaAlerts = useMemo(() => {
     const alerts: { severity: 'danger' | 'warning'; message: string; donationId: string }[] = [];
-    MOCK_DONATIONS.forEach((d) => {
+    allDonations.forEach((d) => {
       if (d.anonymous && d.amount > ECFA_ANONYMOUS_THRESHOLD) {
         alerts.push({
           severity: 'danger',
@@ -490,7 +379,7 @@ export default function DonationsPage() {
       }
     });
     return alerts;
-  }, []);
+  }, [allDonations]);
 
   /* ---- Anonymous amount warning ---- */
   const parsedAmount = parseFloat(formData.amount) || 0;
@@ -510,9 +399,36 @@ export default function DonationsPage() {
     });
   };
 
-  const handleSubmit = () => {
-    setModalOpen(false);
-    resetForm();
+  const handleSubmit = async () => {
+    if (!activeCampaignId || !user) return;
+    setSubmitting(true);
+    try {
+      const phone = formData.anonymous ? null : (formData.donor_phone ? `+254${formData.donor_phone.replace(/\D/g, '')}` : null);
+      const result = await createDonation(
+        {
+          campaign_id: activeCampaignId,
+          amount_kes: parsedAmount,
+          donor_name: formData.anonymous ? null : (formData.donor_name || null),
+          donor_phone: phone,
+          mpesa_ref: formData.method === 'mpesa' ? (formData.reference || null) : null,
+          is_anonymous: formData.anonymous,
+          source: formData.method === 'mpesa' ? 'manual' : formData.method,
+          receipt_number: null,
+        },
+        user.id
+      );
+      if (result.error) {
+        alert(result.error);
+      } else {
+        setModalOpen(false);
+        resetForm();
+        await refreshDonations();
+      }
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   /* ---- Table columns ---- */
@@ -641,7 +557,7 @@ export default function DonationsPage() {
                 className="text-xl font-extrabold"
               />
             }
-            sub={`${MOCK_DONATIONS.length} donations recorded`}
+            sub={`${allDonations.length} donations recorded`}
             variant="green"
             icon={<HandCoins className="h-4 w-4" />}
             onClick={() => setModalOpen(true)}
@@ -672,7 +588,7 @@ export default function DonationsPage() {
                 className="text-xl font-extrabold"
               />
             }
-            sub={`${mpesaDonations.length} of ${MOCK_DONATIONS.length} via M-Pesa`}
+            sub={`${mpesaDonations.length} of ${allDonations.length} via M-Pesa`}
             variant="green"
             icon={<Smartphone className="h-4 w-4" />}
             onClick={() => { setMethodFilter('mpesa'); setKycFilter(''); setComplianceFilter(''); }}
@@ -688,7 +604,7 @@ export default function DonationsPage() {
                 className="text-xl font-extrabold"
               />
             }
-            sub={`${compliantCount} of ${MOCK_DONATIONS.length} compliant`}
+            sub={`${compliantCount} of ${allDonations.length} compliant`}
             variant={complianceRate >= 90 ? 'green' : complianceRate >= 70 ? 'orange' : 'red'}
             icon={<ShieldCheck className="h-4 w-4" />}
             onClick={() => { setComplianceFilter('flagged'); setMethodFilter(''); setKycFilter(''); }}
@@ -714,7 +630,7 @@ export default function DonationsPage() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={INFLOW_DATA}>
+              <AreaChart data={inflowData}>
                 <defs>
                   <linearGradient id="inflowGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#1D6B3F" stopOpacity={0.2} />
@@ -869,7 +785,7 @@ export default function DonationsPage() {
             {/* Results count */}
             <div className="px-4 py-3 border-t border-surface-border">
               <p className="text-xs text-text-tertiary">
-                Showing {filteredDonations.length} of {MOCK_DONATIONS.length} donations
+                {loading ? 'Loading donations...' : `Showing ${filteredDonations.length} of ${totalCount || allDonations.length} donations`}
               </p>
             </div>
           </div>
@@ -923,7 +839,7 @@ export default function DonationsPage() {
             {/* Quick stats */}
             <div className="mt-5 pt-4 border-t border-surface-border space-y-2.5">
               {DONATION_METHODS.map((m) => {
-                const count = MOCK_DONATIONS.filter((d) => d.method === m).length;
+                const count = allDonations.filter((d) => d.method === m).length;
                 if (count === 0) return null;
                 return (
                   <div key={m} className="flex items-center justify-between">
@@ -941,7 +857,7 @@ export default function DonationsPage() {
               <div className="flex items-center justify-between pt-1 border-t border-surface-border-light">
                 <span className="text-xs text-text-tertiary">Flagged / Violations</span>
                 <span className="text-xs font-semibold text-red">
-                  {MOCK_DONATIONS.filter((d) => d.compliance !== 'compliant').length}
+                  {allDonations.filter((d) => d.compliance !== 'compliant').length}
                 </span>
               </div>
             </div>
@@ -1106,9 +1022,9 @@ export default function DonationsPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={showAnonymousWarning}>
+            <Button type="submit" disabled={showAnonymousWarning || submitting}>
               <HandCoins className="h-4 w-4" />
-              Record Donation
+              {submitting ? 'Saving...' : 'Record Donation'}
             </Button>
           </div>
         </form>

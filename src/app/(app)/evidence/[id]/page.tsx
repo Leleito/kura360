@@ -28,7 +28,8 @@ import { Badge } from '@/components/ui';
 import { FadeIn } from '@/components/premium';
 import { cn, formatDate } from '@/lib/utils';
 import { useCampaign } from '@/lib/campaign-context';
-import { getEvidenceById } from '@/lib/actions/evidence';
+import { useUser } from '@/lib/auth/hooks';
+import { getEvidenceById, getEvidenceItems, updateEvidenceItem } from '@/lib/actions/evidence';
 import { getAuditLog } from '@/lib/actions/audit';
 import type { Tables } from '@/types/database';
 import type { EvidenceType, EvidenceStatus } from '@/lib/validators/evidence';
@@ -102,178 +103,6 @@ const STATUS_CONFIG: Record<
   flagged: { label: 'Flagged', variant: 'danger', Icon: AlertTriangle, color: '#E53E3E', textColor: 'text-[#E53E3E]', bgClass: 'bg-[#E53E3E]/10' },
 };
 
-// ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-const MOCK_EVIDENCE: Record<string, EvidenceItem> = {
-  'ev-001': {
-    id: 'ev-001',
-    title: 'Uhuru Park Rally -- Crowd Aerial View',
-    type: 'photo',
-    county: 'Nairobi',
-    description:
-      'Aerial drone photograph of campaign rally at Uhuru Park showing crowd turnout estimated at 15,000 supporters. Image captured at approximately 14:30 EAT from an altitude of 120 metres using a DJI Mavic 3 drone operated by licensed pilot. The photograph provides a comprehensive view of the rally grounds, stage setup, and attendee distribution for crowd size verification.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-001.jpg',
-    captured_by: 'James Mwangi',
-    sha256_hash: 'a3f2b8c4e5d6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0d91c',
-    status: 'verified',
-    created_at: '2026-02-15T09:30:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-    file_size: '4.2 MB',
-    location: { lat: -1.2870, lng: 36.8172 },
-  },
-  'ev-002': {
-    id: 'ev-002',
-    title: 'Ballot Counting -- Langata Constituency',
-    type: 'video',
-    county: 'Nairobi',
-    description:
-      'Continuous video recording of ballot counting process at Langata Primary School polling station from 5:00 PM to 9:45 PM.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-002.mp4',
-    captured_by: 'Sarah Wanjiku',
-    sha256_hash: 'b7e4d2f1a8c3e6b9d5f0a2c4e7b1d3f6a9c2e5b8d0f3a6c9e1b4d7f0a3c6e9b2',
-    status: 'verified',
-    created_at: '2026-02-20T17:15:00Z',
-    thumbnail_color: 'bg-[#805AD5]',
-    file_size: '1.8 GB',
-    location: { lat: -1.3048, lng: 36.7627 },
-  },
-  'ev-003': {
-    id: 'ev-003',
-    title: 'Campaign T-Shirts Distribution Record',
-    type: 'document',
-    county: 'Nakuru',
-    description: 'Signed delivery note for 5,000 campaign T-shirts distributed to ward coordinators in Nakuru Town East.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-003.pdf',
-    captured_by: 'Peter Ochieng',
-    sha256_hash: 'c1d8e5f2a9b6c3d0e7f4a1b8c5d2e9f6a3b0c7d4e1f8a5b2c9d6e3f0a7b4c1d8',
-    status: 'pending',
-    created_at: '2026-02-22T11:00:00Z',
-    thumbnail_color: 'bg-[#1D6B3F]',
-    file_size: '892 KB',
-  },
-  'ev-004': {
-    id: 'ev-004',
-    title: 'Voter Intimidation Incident -- Kisumu Central',
-    type: 'photo',
-    county: 'Kisumu',
-    description: 'Photographic evidence of unauthorized persons attempting to obstruct voters at Kisumu Central polling station.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-004.jpg',
-    captured_by: 'Agnes Atieno',
-    sha256_hash: 'd4e1f8a5b2c9d6e3f0a7b4c1d8e5f2a9b6c3d0e7f4a1b8c5d2e9f6a3b0c7d4e1',
-    status: 'flagged',
-    created_at: '2026-02-18T14:45:00Z',
-    thumbnail_color: 'bg-[#E53E3E]',
-    file_size: '3.1 MB',
-    location: { lat: -0.0917, lng: 34.7680 },
-  },
-  'ev-005': {
-    id: 'ev-005',
-    title: 'Campaign Billboard Permit -- Mombasa',
-    type: 'document',
-    county: 'Mombasa',
-    description: 'County government approval permit for campaign billboards along Moi Avenue and Nyali Bridge.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-005.pdf',
-    captured_by: 'Hassan Omar',
-    sha256_hash: 'e7f4a1b8c5d2e9f6a3b0c7d4e1f8a5b2c9d6e3f0a7b4c1d8e5f2a9b6c3d0e7f4',
-    status: 'verified',
-    created_at: '2026-02-10T08:20:00Z',
-    thumbnail_color: 'bg-[#1D6B3F]',
-    file_size: '1.4 MB',
-  },
-  'ev-006': {
-    id: 'ev-006',
-    title: 'Town Hall Meeting Audio -- Eldoret',
-    type: 'audio',
-    county: 'Uasin Gishu',
-    description: 'Full audio recording of candidate town hall meeting in Eldoret covering education policy.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-006.mp3',
-    captured_by: 'Kipchoge Rono',
-    sha256_hash: 'f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3',
-    status: 'verified',
-    created_at: '2026-02-12T16:30:00Z',
-    thumbnail_color: 'bg-[#ED8936]',
-    file_size: '78 MB',
-    location: { lat: 0.5143, lng: 35.2698 },
-  },
-  'ev-007': {
-    id: 'ev-007',
-    title: 'Agent Deployment -- Kiambu County Roster',
-    type: 'document',
-    county: 'Kiambu',
-    description: 'Signed deployment roster for 342 polling station agents across Kiambu County.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-007.pdf',
-    captured_by: 'Grace Njeri',
-    sha256_hash: 'a1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4',
-    status: 'pending',
-    created_at: '2026-02-24T10:00:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-    file_size: '2.3 MB',
-  },
-  'ev-008': {
-    id: 'ev-008',
-    title: 'Rally Stage Setup -- Garissa Town',
-    type: 'photo',
-    county: 'Garissa',
-    description: 'Pre-event photograph documenting stage setup and branding compliance at Garissa Town rally grounds.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-008.jpg',
-    captured_by: 'Abdi Mohamed',
-    sha256_hash: 'b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1',
-    status: 'verified',
-    created_at: '2026-02-19T07:45:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-    file_size: '5.6 MB',
-    location: { lat: -0.4533, lng: 39.6461 },
-  },
-  'ev-009': {
-    id: 'ev-009',
-    title: 'Suspicious Campaign Expenditure Receipt',
-    type: 'document',
-    county: 'Narok',
-    description: 'Flagged receipt showing possible inflated costs for campaign materials.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-009.pdf',
-    captured_by: 'David ole Sankale',
-    sha256_hash: 'c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3',
-    status: 'flagged',
-    created_at: '2026-02-23T13:20:00Z',
-    thumbnail_color: 'bg-[#E53E3E]',
-    file_size: '456 KB',
-  },
-  'ev-010': {
-    id: 'ev-010',
-    title: 'M-Pesa Donation Campaign -- Feedback Video',
-    type: 'video',
-    county: 'Machakos',
-    description: 'Supporter testimonial video recorded during M-Pesa micro-donation campaign launch at Machakos People\'s Park.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-010.mp4',
-    captured_by: 'Mercy Mutua',
-    sha256_hash: 'd3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6',
-    status: 'pending',
-    created_at: '2026-02-25T15:10:00Z',
-    thumbnail_color: 'bg-[#805AD5]',
-    file_size: '245 MB',
-    location: { lat: -1.5177, lng: 37.2634 },
-  },
-};
-
-const MOCK_CUSTODY_EVENTS: Record<string, CustodyEvent[]> = {
-  'ev-001': [
-    { id: 'cust-1', action: 'Captured', actor: 'James Mwangi', timestamp: '2026-02-15T09:30:00Z', detail: 'Original photograph captured via DJI Mavic 3 drone at Uhuru Park, Nairobi' },
-    { id: 'cust-2', action: 'Uploaded', actor: 'James Mwangi', timestamp: '2026-02-15T10:05:00Z', detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
-    { id: 'cust-3', action: 'Hash Verified', actor: 'System', timestamp: '2026-02-15T10:06:00Z', detail: 'Automated integrity check passed -- hash matches original file' },
-    { id: 'cust-4', action: 'Reviewed', actor: 'Campaign Manager', timestamp: '2026-02-15T14:20:00Z', detail: 'Evidence reviewed and approved by campaign compliance officer' },
-    { id: 'cust-5', action: 'Verified', actor: 'Mary Wambui', timestamp: '2026-02-16T09:00:00Z', detail: 'Cross-referenced with rally attendance logs -- status set to Verified' },
-  ],
-};
-
-const MOCK_RELATED: Record<string, RelatedItem[]> = {
-  'ev-001': [
-    { id: 'ev-002', title: 'Ballot Counting -- Langata Constituency', type: 'video', thumbnail_color: 'bg-[#805AD5]' },
-    { id: 'ev-008', title: 'Rally Stage Setup -- Garissa Town', type: 'photo', thumbnail_color: 'bg-[#2E75B6]' },
-    { id: 'ev-006', title: 'Town Hall Meeting Audio -- Eldoret', type: 'audio', thumbnail_color: 'bg-[#ED8936]' },
-  ],
-};
 
 // ---------------------------------------------------------------------------
 // Helpers – map DB row to UI types
@@ -373,28 +202,16 @@ export default function EvidenceDetailPage({
 }) {
   const { id } = use(params);
   const { campaign } = useCampaign();
+  const { user } = useUser();
   const [hashCopied, setHashCopied] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [item, setItem] = useState<EvidenceItem | null>(MOCK_EVIDENCE[id] ?? null);
-  const [custodyEvents, setCustodyEvents] = useState<CustodyEvent[]>(
-    MOCK_CUSTODY_EVENTS[id] ?? []
-  );
+  const [actionLoading, setActionLoading] = useState<'verify' | 'flag' | null>(null);
+  const [item, setItem] = useState<EvidenceItem | null>(null);
+  const [custodyEvents, setCustodyEvents] = useState<CustodyEvent[]>([]);
+  const [relatedItems, setRelatedItems] = useState<RelatedItem[]>([]);
 
   // Fetch real evidence data from Supabase
   const fetchEvidence = useCallback(async () => {
-    // For mock IDs, use the hardcoded data directly
-    if (MOCK_EVIDENCE[id]) {
-      setItem(MOCK_EVIDENCE[id]);
-      setCustodyEvents(
-        MOCK_CUSTODY_EVENTS[id] ?? [
-          { id: 'cust-default-1', action: 'Uploaded', actor: MOCK_EVIDENCE[id].captured_by, timestamp: MOCK_EVIDENCE[id].created_at, detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
-          { id: 'cust-default-2', action: 'Hash Generated', actor: 'System', timestamp: MOCK_EVIDENCE[id].created_at, detail: 'Automated SHA-256 integrity hash computed and stored' },
-        ]
-      );
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
       // Fetch evidence item from DB
@@ -416,12 +233,25 @@ export default function EvidenceDetailPage({
         if (auditLogs && auditLogs.length > 0) {
           setCustodyEvents(mapAuditToCustody(auditLogs));
         } else {
-          // Default custody events for real items with no audit trail yet
+          // Default custody events when no audit trail exists yet
           setCustodyEvents([
             { id: 'cust-default-1', action: 'Uploaded', actor: dbItem.agent_id ?? 'Unknown', timestamp: dbItem.created_at, detail: 'File uploaded to KURA360 Evidence Vault and SHA-256 hash generated' },
             { id: 'cust-default-2', action: 'Hash Generated', actor: 'System', timestamp: dbItem.created_at, detail: 'Automated SHA-256 integrity hash computed and stored' },
           ]);
         }
+
+        // Fetch related evidence items from the same campaign (up to 3, excluding current)
+        const { data: siblings } = await getEvidenceItems(campaign.id, { pageSize: 4 });
+        const related = siblings
+          .filter((s) => s.id !== id)
+          .slice(0, 3)
+          .map((s): RelatedItem => ({
+            id: s.id,
+            title: s.title,
+            type: s.type as EvidenceType,
+            thumbnail_color: TYPE_THUMBNAIL_COLORS[s.type] ?? 'bg-[#2E75B6]',
+          }));
+        setRelatedItems(related);
       }
     } catch (err) {
       console.error('[EvidenceDetail] Failed to fetch evidence:', err);
@@ -433,6 +263,39 @@ export default function EvidenceDetailPage({
   useEffect(() => {
     fetchEvidence();
   }, [fetchEvidence]);
+
+  // Handle verify / flag status updates
+  const handleStatusUpdate = useCallback(
+    async (newStatus: 'verified' | 'flagged') => {
+      if (!item || !campaign?.id || !user?.id) return;
+      setActionLoading(newStatus === 'verified' ? 'verify' : 'flag');
+      try {
+        const updates: { verification_status: string; verified_at?: string } = {
+          verification_status: newStatus,
+        };
+        if (newStatus === 'verified') {
+          updates.verified_at = new Date().toISOString();
+        }
+        const { data, error } = await updateEvidenceItem(id, campaign.id, user.id, updates);
+        if (!error && data) {
+          setItem(mapDbToEvidenceItem(data));
+          // Re-fetch custody events to include the new audit log entry
+          const { data: auditLogs } = await getAuditLog(campaign.id, {
+            tableName: 'evidence_items',
+            recordId: id,
+          });
+          if (auditLogs && auditLogs.length > 0) {
+            setCustodyEvents(mapAuditToCustody(auditLogs));
+          }
+        }
+      } catch (err) {
+        console.error('[EvidenceDetail] Failed to update status:', err);
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [id, item, campaign?.id, user?.id]
+  );
 
   const handleCopyHash = () => {
     if (!item) return;
@@ -475,7 +338,6 @@ export default function EvidenceDetailPage({
   const statusConfig = STATUS_CONFIG[item.status];
   const StatusIcon = statusConfig.Icon;
   const typeColor = TYPE_COLORS[item.type];
-  const relatedItems = MOCK_RELATED[id] ?? [];
 
   return (
     <div className="space-y-6">
@@ -529,13 +391,21 @@ export default function EvidenceDetailPage({
 
               {/* Action bar */}
               <div className="flex items-center gap-2 p-4 border-t border-surface-border">
-                <button className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#1D6B3F] rounded-lg hover:bg-[#1D6B3F]/90 transition-colors">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Verify
+                <button
+                  onClick={() => handleStatusUpdate('verified')}
+                  disabled={actionLoading !== null || item.status === 'verified'}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#1D6B3F] rounded-lg hover:bg-[#1D6B3F]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'verify' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                  {actionLoading === 'verify' ? 'Verifying...' : 'Verify'}
                 </button>
-                <button className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#E53E3E] border border-[#E53E3E]/30 rounded-lg hover:bg-[#E53E3E]/5 transition-colors">
-                  <Flag className="w-3.5 h-3.5" />
-                  Flag
+                <button
+                  onClick={() => handleStatusUpdate('flagged')}
+                  disabled={actionLoading !== null || item.status === 'flagged'}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#E53E3E] border border-[#E53E3E]/30 rounded-lg hover:bg-[#E53E3E]/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'flag' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+                  {actionLoading === 'flag' ? 'Flagging...' : 'Flag'}
                 </button>
                 <button className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-text-secondary border border-surface-border rounded-lg hover:bg-surface-bg transition-colors">
                   <Download className="w-3.5 h-3.5" />

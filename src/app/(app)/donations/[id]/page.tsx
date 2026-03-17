@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -25,6 +25,7 @@ import {
   Smartphone,
   Banknote,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { cn, formatKES, formatDate, formatDateShort, formatPhone } from '@/lib/utils';
 import { Button, Badge, Avatar } from '@/components/ui';
@@ -38,6 +39,9 @@ import {
   type KYCStatus,
   type ComplianceStatus,
 } from '@/lib/validators/donations';
+import { getDonationById, getDonationsByDonorPhone } from '@/lib/actions/donations';
+import { useCampaign } from '@/lib/campaign-context';
+import type { Tables } from '@/types/database';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -68,6 +72,42 @@ interface ComplianceCheck {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  DB → UI mapping                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Infer DonationMethod from the DB source column and mpesa_ref */
+function inferMethod(row: Tables<'donations'>): DonationMethod {
+  const src = (row.source ?? '').toLowerCase();
+  if (src === 'mpesa' || src === 'm-pesa' || row.mpesa_ref) return 'mpesa';
+  if (src === 'bank') return 'bank';
+  if (src === 'cheque') return 'cheque';
+  if (src === 'cash') return 'cash';
+  // fallback: if mpesa_ref exists treat as mpesa, otherwise cash
+  return row.mpesa_ref ? 'mpesa' : 'cash';
+}
+
+/** Map a Supabase donations row to the UI DonationDetail shape */
+function mapRowToDetail(row: Tables<'donations'>): DonationDetail {
+  return {
+    id: row.id,
+    donor_name: row.donor_name ?? 'Unknown Donor',
+    donor_phone: row.donor_phone ?? '',
+    national_id: '', // not stored in DB — leave blank
+    amount: row.amount_kes,
+    method: inferMethod(row),
+    reference: row.mpesa_ref ?? '',
+    kyc_status: row.kyc_status as KYCStatus,
+    compliance: row.compliance_status as ComplianceStatus,
+    flagged_reason: row.flagged_reason,
+    anonymous: row.is_anonymous,
+    notes: '', // not stored in DB
+    donated_at: row.donated_at,
+    receipt_number: row.receipt_number ?? '',
+    created_at: row.created_at,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Method colors + icons                                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -89,192 +129,6 @@ function methodIcon(method: DonationMethod) {
     case 'cheque':
       return <Receipt className="h-5 w-5" />;
   }
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Mock Data                                                                 */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_DONATIONS: Record<string, DonationDetail> = {
-  don_001: {
-    id: 'don_001',
-    donor_name: 'Grace Wanjiku Muthoni',
-    donor_phone: '+254712345678',
-    national_id: '28456712',
-    amount: 250_000,
-    method: 'mpesa',
-    reference: 'QJH7T2KXMR',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Business supporter — monthly pledge from Nairobi office',
-    donated_at: '2026-02-27T09:30:00Z',
-    receipt_number: 'RCP-2026-0001',
-    created_at: '2026-02-27T09:31:12Z',
-  },
-  don_002: {
-    id: 'don_002',
-    donor_name: 'Ochieng Otieno',
-    donor_phone: '+254723456789',
-    national_id: '31245890',
-    amount: 150_000,
-    method: 'bank',
-    reference: 'KCB-TRF-98271',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Equity Bank transfer — business supporter',
-    donated_at: '2026-02-26T14:15:00Z',
-    receipt_number: 'RCP-2026-0002',
-    created_at: '2026-02-26T14:16:45Z',
-  },
-  don_003: {
-    id: 'don_003',
-    donor_name: 'Akinyi Nyambura',
-    donor_phone: '+254734567890',
-    national_id: '27893456',
-    amount: 75_000,
-    method: 'mpesa',
-    reference: 'RNL4P8VBZQ',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Recurring monthly contributor',
-    donated_at: '2026-02-25T11:45:00Z',
-    receipt_number: 'RCP-2026-0003',
-    created_at: '2026-02-25T11:46:33Z',
-  },
-  don_004: {
-    id: 'don_004',
-    donor_name: 'Anonymous Donor',
-    donor_phone: '+254700000000',
-    national_id: '00000000',
-    amount: 8_000,
-    method: 'cash',
-    reference: '',
-    kyc_status: 'failed',
-    compliance: 'violation',
-    flagged_reason: 'Anonymous donation exceeds KES 5,000 ECFA threshold',
-    anonymous: true,
-    notes: 'Cash donation at Uhuru Gardens rally',
-    donated_at: '2026-02-24T16:20:00Z',
-    receipt_number: 'RCP-2026-0004',
-    created_at: '2026-02-24T16:21:08Z',
-  },
-  don_005: {
-    id: 'don_005',
-    donor_name: 'Mutua Kioko',
-    donor_phone: '+254745678901',
-    national_id: '34567823',
-    amount: 100_000,
-    method: 'cheque',
-    reference: 'CHQ-00456',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Co-operative Bank cheque',
-    donated_at: '2026-02-23T10:00:00Z',
-    receipt_number: 'RCP-2026-0005',
-    created_at: '2026-02-23T10:01:22Z',
-  },
-  don_006: {
-    id: 'don_006',
-    donor_name: 'Njeri Mwangi',
-    donor_phone: '+254756789012',
-    national_id: '29876543',
-    amount: 45_000,
-    method: 'mpesa',
-    reference: 'TYK9M3HDWF',
-    kyc_status: 'pending',
-    compliance: 'flagged',
-    flagged_reason: 'KYC verification incomplete',
-    anonymous: false,
-    notes: 'Awaiting ID verification',
-    donated_at: '2026-02-22T08:30:00Z',
-    receipt_number: 'RCP-2026-0006',
-    created_at: '2026-02-22T08:31:55Z',
-  },
-  don_007: {
-    id: 'don_007',
-    donor_name: 'Kipchoge Ruto',
-    donor_phone: '+254767890123',
-    national_id: '25678934',
-    amount: 180_000,
-    method: 'bank',
-    reference: 'EQT-TRF-54382',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Equity Bank transfer',
-    donated_at: '2026-02-21T15:45:00Z',
-    receipt_number: 'RCP-2026-0007',
-    created_at: '2026-02-21T15:46:30Z',
-  },
-  don_008: {
-    id: 'don_008',
-    donor_name: 'Fatuma Hassan',
-    donor_phone: '+254778901234',
-    national_id: '32145678',
-    amount: 25_000,
-    method: 'mpesa',
-    reference: 'BNX2L6JCPA',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'Grassroots contribution — Mombasa chapter',
-    donated_at: '2026-02-20T12:10:00Z',
-    receipt_number: 'RCP-2026-0008',
-    created_at: '2026-02-20T12:11:15Z',
-  },
-  don_009: {
-    id: 'don_009',
-    donor_name: 'Omondi Juma',
-    donor_phone: '+254789012345',
-    national_id: '27654321',
-    amount: 320_000,
-    method: 'bank',
-    reference: 'NCBA-TRF-11029',
-    kyc_status: 'verified',
-    compliance: 'compliant',
-    flagged_reason: null,
-    anonymous: false,
-    notes: 'NCBA Bank transfer — construction magnate',
-    donated_at: '2026-02-19T09:00:00Z',
-    receipt_number: 'RCP-2026-0009',
-    created_at: '2026-02-19T09:01:40Z',
-  },
-  don_010: {
-    id: 'don_010',
-    donor_name: 'Chebet Langat',
-    donor_phone: '+254790123456',
-    national_id: '30987654',
-    amount: 12_000,
-    method: 'mpesa',
-    reference: 'WSG5R1PMNE',
-    kyc_status: 'pending',
-    compliance: 'flagged',
-    flagged_reason: 'KYC verification incomplete',
-    anonymous: false,
-    notes: 'Eldoret supporter',
-    donated_at: '2026-02-18T17:30:00Z',
-    receipt_number: 'RCP-2026-0010',
-    created_at: '2026-02-18T17:31:05Z',
-  },
-};
-
-/**
- * Simulated donor history: previous donations from the same donor.
- */
-function getDonorHistory(nationalId: string, currentId: string): DonationDetail[] {
-  return Object.values(MOCK_DONATIONS).filter(
-    (d) => d.national_id === nationalId && d.id !== currentId
-  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -396,11 +250,59 @@ export default function DonationDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { campaign } = useCampaign();
 
-  const donation = MOCK_DONATIONS[id];
+  const [donation, setDonation] = useState<DonationDetail | null>(null);
+  const [donorHistory, setDonorHistory] = useState<DonationDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 404 fallback
-  if (!donation) {
+  const fetchDonation = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const result = await getDonationById(id);
+
+    if (result.error || !result.data) {
+      setError(result.error ?? 'Donation not found');
+      setLoading(false);
+      return;
+    }
+
+    const mapped = mapRowToDetail(result.data);
+    setDonation(mapped);
+
+    // Fetch related donations from same donor
+    if (result.data.donor_phone && campaign?.id) {
+      const historyResult = await getDonationsByDonorPhone(
+        campaign.id,
+        result.data.donor_phone,
+        id
+      );
+      if (historyResult.data.length > 0) {
+        setDonorHistory(historyResult.data.map(mapRowToDetail));
+      }
+    }
+
+    setLoading(false);
+  }, [id, campaign?.id]);
+
+  useEffect(() => {
+    fetchDonation();
+  }, [fetchDonation]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 text-blue animate-spin mb-4" />
+        <p className="text-sm text-text-secondary">Loading donation details...</p>
+      </div>
+    );
+  }
+
+  // 404 / error fallback
+  if (!donation || error) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="h-16 w-16 rounded-full bg-surface-bg flex items-center justify-center mb-4">
@@ -410,7 +312,7 @@ export default function DonationDetailPage({
           Donation not found
         </p>
         <p className="text-sm text-text-secondary mb-4">
-          The donation record &quot;{id}&quot; could not be located.
+          {error ?? `The donation record "${id}" could not be located.`}
         </p>
         <Button variant="secondary" onClick={() => router.push('/donations')}>
           <ArrowLeft className="h-4 w-4" />
@@ -422,7 +324,6 @@ export default function DonationDetailPage({
 
   const complianceChecks = buildComplianceChecks(donation);
   const passedChecks = complianceChecks.filter((c) => c.passed).length;
-  const donorHistory = getDonorHistory(donation.national_id, donation.id);
   const totalFromDonor =
     donation.amount + donorHistory.reduce((sum, d) => sum + d.amount, 0);
 
@@ -552,11 +453,13 @@ export default function DonationDetailPage({
 
             <div className="divide-y divide-surface-border-light">
               <DetailRow icon={Phone} label="Phone">
-                {formatPhone(donation.donor_phone)}
+                {donation.donor_phone ? formatPhone(donation.donor_phone) : 'N/A'}
               </DetailRow>
-              <DetailRow icon={FileText} label="National ID">
-                <span className="font-mono">{maskNationalId(donation.national_id)}</span>
-              </DetailRow>
+              {donation.national_id && (
+                <DetailRow icon={FileText} label="National ID">
+                  <span className="font-mono">{maskNationalId(donation.national_id)}</span>
+                </DetailRow>
+              )}
               <DetailRow icon={ShieldCheck} label="KYC Status">
                 <div className="flex items-center gap-2">
                   {kycIcon(donation.kyc_status)}
@@ -633,7 +536,7 @@ export default function DonationDetailPage({
               <div className="divide-y divide-surface-border-light">
                 <DetailRow icon={Hash} label="Receipt Number">
                   <span className="font-mono font-semibold text-blue">
-                    {donation.receipt_number}
+                    {donation.receipt_number || 'Not issued'}
                   </span>
                 </DetailRow>
                 <DetailRow icon={Calendar} label="Issue Date">

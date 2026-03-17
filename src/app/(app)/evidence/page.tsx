@@ -94,143 +94,6 @@ function truncateHash(hash: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-const MOCK_EVIDENCE: EvidenceItem[] = [
-  {
-    id: 'ev-001',
-    title: 'Uhuru Park Rally -- Crowd Aerial View',
-    type: 'photo',
-    county: 'Nairobi',
-    description: 'Aerial drone photograph of campaign rally at Uhuru Park showing crowd turnout estimated at 15,000 supporters.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-001.jpg',
-    captured_by: 'James Mwangi',
-    sha256_hash: 'a3f2b8c4e5d6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0d91c',
-    status: 'verified',
-    created_at: '2026-02-15T09:30:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-  },
-  {
-    id: 'ev-002',
-    title: 'Ballot Counting -- Langata Constituency',
-    type: 'video',
-    county: 'Nairobi',
-    description: 'Continuous video recording of ballot counting process at Langata Primary School polling station.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-002.mp4',
-    captured_by: 'Sarah Wanjiku',
-    sha256_hash: 'b7e4d2f1a8c3e6b9d5f0a2c4e7b1d3f6a9c2e5b8d0f3a6c9e1b4d7f0a3c6e9b2',
-    status: 'verified',
-    created_at: '2026-02-20T17:15:00Z',
-    thumbnail_color: 'bg-[#805AD5]',
-  },
-  {
-    id: 'ev-003',
-    title: 'Campaign T-Shirts Distribution Record',
-    type: 'document',
-    county: 'Nakuru',
-    description: 'Signed delivery note for 5,000 campaign T-shirts distributed to ward coordinators in Nakuru Town East.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-003.pdf',
-    captured_by: 'Peter Ochieng',
-    sha256_hash: 'c1d8e5f2a9b6c3d0e7f4a1b8c5d2e9f6a3b0c7d4e1f8a5b2c9d6e3f0a7b4c1d8',
-    status: 'pending',
-    created_at: '2026-02-22T11:00:00Z',
-    thumbnail_color: 'bg-[#1D6B3F]',
-  },
-  {
-    id: 'ev-004',
-    title: 'Voter Intimidation Incident -- Kisumu Central',
-    type: 'photo',
-    county: 'Kisumu',
-    description: 'Photographic evidence of unauthorized persons attempting to obstruct voters.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-004.jpg',
-    captured_by: 'Agnes Atieno',
-    sha256_hash: 'd4e1f8a5b2c9d6e3f0a7b4c1d8e5f2a9b6c3d0e7f4a1b8c5d2e9f6a3b0c7d4e1',
-    status: 'flagged',
-    created_at: '2026-02-18T14:45:00Z',
-    thumbnail_color: 'bg-[#E53E3E]',
-  },
-  {
-    id: 'ev-005',
-    title: 'Campaign Billboard Permit -- Mombasa',
-    type: 'document',
-    county: 'Mombasa',
-    description: 'County government approval permit for campaign billboards along Moi Avenue and Nyali Bridge.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-005.pdf',
-    captured_by: 'Hassan Omar',
-    sha256_hash: 'e7f4a1b8c5d2e9f6a3b0c7d4e1f8a5b2c9d6e3f0a7b4c1d8e5f2a9b6c3d0e7f4',
-    status: 'verified',
-    created_at: '2026-02-10T08:20:00Z',
-    thumbnail_color: 'bg-[#1D6B3F]',
-  },
-  {
-    id: 'ev-006',
-    title: 'Town Hall Meeting Audio -- Eldoret',
-    type: 'audio',
-    county: 'Uasin Gishu',
-    description: 'Full audio recording of candidate town hall meeting in Eldoret covering education policy.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-006.mp3',
-    captured_by: 'Kipchoge Rono',
-    sha256_hash: 'f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3',
-    status: 'verified',
-    created_at: '2026-02-12T16:30:00Z',
-    thumbnail_color: 'bg-[#ED8936]',
-  },
-  {
-    id: 'ev-007',
-    title: 'Agent Deployment -- Kiambu County Roster',
-    type: 'document',
-    county: 'Kiambu',
-    description: 'Signed deployment roster for 342 polling station agents across Kiambu County.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-007.pdf',
-    captured_by: 'Grace Njeri',
-    sha256_hash: 'a1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4',
-    status: 'pending',
-    created_at: '2026-02-24T10:00:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-  },
-  {
-    id: 'ev-008',
-    title: 'Rally Stage Setup -- Garissa Town',
-    type: 'photo',
-    county: 'Garissa',
-    description: 'Pre-event photograph documenting stage setup and branding compliance.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-008.jpg',
-    captured_by: 'Abdi Mohamed',
-    sha256_hash: 'b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1',
-    status: 'verified',
-    created_at: '2026-02-19T07:45:00Z',
-    thumbnail_color: 'bg-[#2E75B6]',
-  },
-  {
-    id: 'ev-009',
-    title: 'Suspicious Campaign Expenditure Receipt',
-    type: 'document',
-    county: 'Narok',
-    description: 'Flagged receipt showing possible inflated costs for campaign materials.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-009.pdf',
-    captured_by: 'David ole Sankale',
-    sha256_hash: 'c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3',
-    status: 'flagged',
-    created_at: '2026-02-23T13:20:00Z',
-    thumbnail_color: 'bg-[#E53E3E]',
-  },
-  {
-    id: 'ev-010',
-    title: 'M-Pesa Donation Campaign -- Feedback Video',
-    type: 'video',
-    county: 'Machakos',
-    description: 'Supporter testimonial video recorded during M-Pesa micro-donation campaign launch.',
-    file_url: 'https://storage.kura360.co.ke/evidence/ev-010.mp4',
-    captured_by: 'Mercy Mutua',
-    sha256_hash: 'd3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6',
-    status: 'pending',
-    created_at: '2026-02-25T15:10:00Z',
-    thumbnail_color: 'bg-[#805AD5]',
-  },
-];
-
-// ---------------------------------------------------------------------------
 // Map DB evidence row to the UI EvidenceItem interface
 // ---------------------------------------------------------------------------
 
@@ -335,9 +198,9 @@ export default function EvidencePage() {
   const { campaign } = useCampaign();
   const activeCampaignId = campaign?.id ?? null;
 
-  // Evidence data (falls back to mock)
-  const [evidence, setEvidence] = useState<EvidenceItem[]>(MOCK_EVIDENCE);
-  const [loading, setLoading] = useState(false);
+  // Evidence data (starts empty, fetches from Supabase)
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [viewMode, setViewMode] = useState<'gallery' | 'list'>('gallery');
   const [searchQuery, setSearchQuery] = useState('');
@@ -351,16 +214,18 @@ export default function EvidencePage() {
   // ---------------------------------------------------------------------------
 
   const refreshEvidence = useCallback(async () => {
-    if (!activeCampaignId) return;
+    if (!activeCampaignId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const result = await getEvidenceItems(activeCampaignId, {});
       if (result.data && result.data.length > 0) {
         setEvidence(result.data.map(mapDbEvidenceToUI));
       }
-      // If no data returned (empty campaign), keep mock data as visual default
     } catch {
-      // On error, keep existing data
+      // keep existing data on error
     } finally {
       setLoading(false);
     }

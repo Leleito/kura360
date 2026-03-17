@@ -42,7 +42,7 @@ import {
 } from "@/lib/validators/finance";
 import { useCampaign } from "@/lib/campaign-context";
 import { RoleGate } from '@/lib/rbac';
-import { getFinanceSummary, getTransactions, type FinanceSummary } from "@/lib/actions/transactions";
+import { getFinanceSummary, getTransactions, getSpendingTrend, type FinanceSummary } from "@/lib/actions/transactions";
 import { exportTransactionsCSV } from "@/lib/export";
 
 /* -------------------------------------------------------------------------- */
@@ -72,84 +72,7 @@ const CATEGORY_COLORS: Record<ECFACategory, string> = {
   "Admin & Other": "#A0AEC0",
 };
 
-/* -------------------------------------------------------------------------- */
-/*  Mock data defaults (shown when no campaign is selected)                    */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: "TXN-001",
-    date: "2026-02-25",
-    description: "Uhuru Gardens rally venue hire & security deposit",
-    category: "Venue Hire",
-    amount: 850_000,
-    receipt_url: "/receipts/txn-001.pdf",
-    status: "approved",
-  },
-  {
-    id: "TXN-002",
-    date: "2026-02-24",
-    description: "Printing 50,000 campaign flyers - Kul Graphics Nairobi",
-    category: "Publicity",
-    amount: 375_000,
-    receipt_url: "/receipts/txn-002.pdf",
-    status: "approved",
-  },
-  {
-    id: "TXN-003",
-    date: "2026-02-23",
-    description: "NTV prime-time 30s campaign advert (7-day run)",
-    category: "Advertising",
-    amount: 1_200_000,
-    receipt_url: "/receipts/txn-003.pdf",
-    status: "approved",
-  },
-  {
-    id: "TXN-004",
-    date: "2026-02-22",
-    description: "Campaign T-shirts 10,000 units - Rivatex Eldoret",
-    category: "Publicity",
-    amount: 650_000,
-    receipt_url: null,
-    status: "pending",
-  },
-  {
-    id: "TXN-005",
-    date: "2026-02-21",
-    description: "Fuel & vehicle hire - Mombasa coast tour (5 vehicles)",
-    category: "Transport",
-    amount: 420_000,
-    receipt_url: "/receipts/txn-005.pdf",
-    status: "approved",
-  },
-  {
-    id: "TXN-006",
-    date: "2026-02-20",
-    description: "Monthly agent stipends - Nairobi constituency coordinators",
-    category: "Personnel",
-    amount: 540_000,
-    receipt_url: "/receipts/txn-006.pdf",
-    status: "approved",
-  },
-  {
-    id: "TXN-007",
-    date: "2026-02-19",
-    description: "Radio Citizen vernacular ads - Kikuyu & Luo slots",
-    category: "Advertising",
-    amount: 320_000,
-    receipt_url: null,
-    status: "pending",
-  },
-  {
-    id: "TXN-008",
-    date: "2026-02-18",
-    description: "Campaign office rent - Lavington, Nairobi (3 months)",
-    category: "Admin & Other",
-    amount: 450_000,
-    receipt_url: "/receipts/txn-008.pdf",
-    status: "approved",
-  },
-];
+/* Mock data removed — transactions now fetched from Supabase */
 
 /* -------------------------------------------------------------------------- */
 /*  Category budget allocations (mock sub-limits within KES 35M ceiling)      */
@@ -164,32 +87,7 @@ const CATEGORY_BUDGETS: Record<ECFACategory, number> = {
   "Admin & Other": 4_000_000,
 };
 
-/* -------------------------------------------------------------------------- */
-/*  Mock spending trend (last 30 days)                                        */
-/* -------------------------------------------------------------------------- */
-
-const SPENDING_TREND = [
-  { date: "Jan 30", amount: 280_000 },
-  { date: "Feb 1", amount: 120_000 },
-  { date: "Feb 3", amount: 450_000 },
-  { date: "Feb 5", amount: 0 },
-  { date: "Feb 7", amount: 185_000 },
-  { date: "Feb 9", amount: 200_000 },
-  { date: "Feb 10", amount: 185_000 },
-  { date: "Feb 11", amount: 275_000 },
-  { date: "Feb 13", amount: 240_000 },
-  { date: "Feb 14", amount: 160_000 },
-  { date: "Feb 15", amount: 185_000 },
-  { date: "Feb 17", amount: 280_000 },
-  { date: "Feb 18", amount: 450_000 },
-  { date: "Feb 19", amount: 320_000 },
-  { date: "Feb 20", amount: 540_000 },
-  { date: "Feb 21", amount: 420_000 },
-  { date: "Feb 22", amount: 650_000 },
-  { date: "Feb 23", amount: 1_200_000 },
-  { date: "Feb 24", amount: 375_000 },
-  { date: "Feb 25", amount: 850_000 },
-];
+/* Spending trend data now fetched from Supabase via getSpendingTrend() */
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -258,7 +156,7 @@ export default function FinancePage() {
 
   // ── State for real data ──
   const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [allRawTransactions, setAllRawTransactions] = useState<Array<{
     id: string;
     transaction_date: string;
@@ -271,6 +169,7 @@ export default function FinancePage() {
     receipt_url?: string | null;
     type: string;
   }>>([]);
+  const [spendingTrendData, setSpendingTrendData] = useState<{ date: string; amount: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -281,11 +180,24 @@ export default function FinancePage() {
     async function fetchFinance() {
       setLoading(true);
       try {
-        const [finance, txnResult] = await Promise.all([
+        const [finance, txnResult, trendResult] = await Promise.all([
           getFinanceSummary(campaignId),
           getTransactions(campaignId, { pageSize: 50 }),
+          getSpendingTrend(campaignId, 20),
         ]);
         if (!finance.error) setFinanceSummary(finance);
+
+        // Wire spending trend from server data
+        if (!trendResult.error && trendResult.data.length > 0) {
+          const mappedTrend = trendResult.data.map((d) => ({
+            date: d.day,
+            amount: d.amount,
+          }));
+          // Only use server data if there's at least some non-zero spending
+          if (mappedTrend.some((d) => d.amount > 0)) {
+            setSpendingTrendData(mappedTrend);
+          }
+        }
 
         if (!txnResult.error && txnResult.data.length > 0) {
           setAllRawTransactions(txnResult.data);
@@ -686,7 +598,7 @@ export default function FinancePage() {
           </div>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={SPENDING_TREND} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <AreaChart data={spendingTrendData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2E75B6" stopOpacity={0.2} />

@@ -38,6 +38,7 @@ import { cn, formatKES } from '@/lib/utils';
 import { useCampaign } from '@/lib/campaign-context';
 import { getComplianceStatus } from '@/lib/actions/compliance';
 import type { ComplianceAlert } from '@/lib/actions/compliance';
+import { getFinanceSummary } from '@/lib/actions/transactions';
 import { Button, StatCard } from '@/components/ui';
 import { AnimatedCounter } from '@/components/premium';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
@@ -391,7 +392,7 @@ export default function CompliancePage() {
   const [activeAlerts, setActiveAlerts] = useState(recentAlerts);
   const [spendingLimit, setSpendingLimit] = useState(SPENDING_LIMIT);
   const [totalSpent, setTotalSpent] = useState(TOTAL_SPENT);
-  const [totalDonations, _setTotalDonations] = useState(TOTAL_DONATIONS);
+  const [totalDonations, setTotalDonations] = useState(TOTAL_DONATIONS);
 
   // ---------------------------------------------------------------------------
   // Data fetching
@@ -401,7 +402,15 @@ export default function CompliancePage() {
     if (!activeCampaignId) return;
     setLoading(true);
     try {
-      const result = await getComplianceStatus(activeCampaignId);
+      const [result, financeResult] = await Promise.all([
+        getComplianceStatus(activeCampaignId),
+        getFinanceSummary(activeCampaignId),
+      ]);
+
+      // Update donation total from finance summary
+      if (!financeResult.error && financeResult.totalDonations > 0) {
+        setTotalDonations(financeResult.totalDonations);
+      }
       if (!result.error) {
         // Map server compliance data to the checks format
         const serverChecks: typeof complianceChecks = [];
@@ -472,6 +481,57 @@ export default function CompliancePage() {
             category: 'Donor',
           });
         }
+
+        // Map evidence and documentation alerts to checks
+        const evidenceAlert = result.alerts.find((a) => a.id === 'evidence-flagged');
+        if (evidenceAlert) {
+          serverChecks.push({
+            id: 'evidence-flagged',
+            label: 'Evidence items flagged',
+            description: evidenceAlert.message,
+            status: 'warning',
+            category: 'Documentation',
+          });
+        } else {
+          serverChecks.push({
+            id: 'evidence-ok',
+            label: 'Evidence vault integrity',
+            description: 'All evidence items pass verification',
+            status: 'pass',
+            category: 'Documentation',
+          });
+        }
+
+        const receiptAlert = result.alerts.find((a) => a.id === 'missing-receipts');
+        if (receiptAlert) {
+          serverChecks.push({
+            id: 'receipt-compliance',
+            label: 'Receipt documentation',
+            description: receiptAlert.message,
+            status: 'warning',
+            category: 'Documentation',
+          });
+        } else {
+          serverChecks.push({
+            id: 'receipt-ok',
+            label: 'Receipt documentation complete',
+            description: 'All expenditures have receipts attached',
+            status: 'pass',
+            category: 'Documentation',
+          });
+        }
+
+        // Total spending check
+        const totalSpentServer = result.categorySpending.reduce((sum, c) => sum + c.spent, 0);
+        const campaignLimit = campaign?.spending_limit_kes ?? SPENDING_LIMIT;
+        const spendPct = campaignLimit > 0 ? (totalSpentServer / campaignLimit) * 100 : 0;
+        serverChecks.push({
+          id: 'total-spending',
+          label: 'Spending within ECFA limit',
+          description: `Campaign spending at ${spendPct.toFixed(0)}% of ${formatKES(campaignLimit)} limit`,
+          status: spendPct > 100 ? 'fail' : spendPct > 90 ? 'warning' : 'pass',
+          category: 'Financial',
+        });
 
         // Only update if we got real server data (non-empty checks)
         if (serverChecks.length > 0) {

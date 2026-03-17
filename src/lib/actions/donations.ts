@@ -168,6 +168,48 @@ export async function createDonation(
   }
 }
 
+/** Fetch a single donation by ID */
+export async function getDonationById(
+  donationId: string
+): Promise<{ data: Donation | null; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('donations')
+      .select('*')
+      .eq('id', donationId)
+      .single();
+
+    if (error) return { data: null, error: error.message };
+    return { data };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
+}
+
+/** Fetch donations from the same donor (by phone), excluding a given donation */
+export async function getDonationsByDonorPhone(
+  campaignId: string,
+  donorPhone: string,
+  excludeId: string
+): Promise<{ data: Donation[]; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('donations')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .eq('donor_phone', donorPhone)
+      .neq('id', excludeId)
+      .order('donated_at', { ascending: false });
+
+    if (error) return { data: [], error: error.message };
+    return { data: data ?? [] };
+  } catch (err) {
+    return { data: [], error: String(err) };
+  }
+}
+
 /** Get donation stats for a campaign */
 export async function getDonationStats(
   campaignId: string
