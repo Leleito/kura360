@@ -21,6 +21,7 @@ import {
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useCampaign } from '@/lib/campaign-context';
+import { IS_DEMO } from '@/lib/demo';
 import {
   hasPermission,
   hasAnyPermission,
@@ -57,10 +58,17 @@ const RoleContext = createContext<RoleContextValue>({
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const { campaign } = useCampaign();
-  const [role, setRole] = useState<CampaignRole | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<CampaignRole | null>(IS_DEMO ? 'campaign_owner' : null);
+  const [loading, setLoading] = useState(!IS_DEMO);
 
   useEffect(() => {
+    // In demo mode, always use campaign_owner role so all features are visible
+    if (IS_DEMO) {
+      setRole('campaign_owner');
+      setLoading(false);
+      return;
+    }
+
     async function fetchRole() {
       setLoading(true);
 

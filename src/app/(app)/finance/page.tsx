@@ -345,6 +345,7 @@ export default function FinancePage() {
             </button>
             <RoleGate permission="transactions:create">
               <Link
+                data-tour="record-transaction"
                 href="/finance/transactions"
                 className="inline-flex items-center gap-1.5 bg-green text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
               >
@@ -357,7 +358,7 @@ export default function FinancePage() {
       </FadeIn>
 
       {/* ---- 4 Premium Stat Cards ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+      <div data-tour="finance-overview" className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <FadeIn delay={0.05} direction="up">
           <Link href="/finance/transactions" className="block bg-white rounded-2xl p-3 sm:p-5 border border-surface-border shadow-sm hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer no-underline">
             <div className="flex items-center justify-between mb-2 sm:mb-3">

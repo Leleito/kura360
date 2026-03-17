@@ -638,7 +638,7 @@ export default function CompliancePage() {
 
       {/* ---- Score + Stats Row ---- */}
       <FadeIn delay={0.1}>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+        <div data-tour="compliance-dashboard" className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
           {/* Compliance Score Ring */}
           <div className="lg:col-span-3 bg-white rounded-xl border border-surface-border p-6 flex flex-col items-center justify-center">
             <ComplianceScoreRing score={overallScore} />

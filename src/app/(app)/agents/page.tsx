@@ -341,7 +341,7 @@ export default function AgentsPage() {
             </p>
           </div>
           <RoleGate permission="agents:create">
-            <Button onClick={() => setShowRegisterModal(true)}>
+            <Button data-tour="agent-add" onClick={() => setShowRegisterModal(true)}>
               <UserPlus className="h-4 w-4" />
               Register Agent
             </Button>
@@ -350,7 +350,7 @@ export default function AgentsPage() {
       </FadeIn>
 
       {/* Summary Stats with AnimatedCounter */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div data-tour="agents-map" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Agents', value: totalAgents, sub: 'Registered', icon: Users, color: 'text-navy', borderColor: 'border-l-[#0F2A44]', filter: 'all' as const },
           { label: 'Deployed', value: deployedCount, sub: `${percentage(deployedCount, totalAgents)}% of total`, icon: Rocket, color: 'text-blue', borderColor: 'border-l-[#2E75B6]', filter: 'deployed' as const },

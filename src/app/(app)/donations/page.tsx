@@ -526,6 +526,7 @@ export default function DonationsPage() {
               </Button>
             </RoleGate>
             <Link
+              data-tour="donation-portal"
               href="/donate"
               target="_blank"
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-surface-border text-text-secondary hover:bg-surface-bg transition-colors"
@@ -546,7 +547,7 @@ export default function DonationsPage() {
       {/* ------------------------------------------------------------------ */}
       {/*  Stat Cards with AnimatedCounter                                   */}
       {/* ------------------------------------------------------------------ */}
-      <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StaggerContainer data-tour="donations-overview" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StaggerItem>
           <StatCard
             label="Total Donations"

@@ -429,6 +429,7 @@ export default function DashboardPage() {
       <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <StaggerItem>
           <StatCard
+            data-tour="stat-balance"
             label="Campaign Balance"
             value={
               <AnimatedCounter
@@ -512,6 +513,7 @@ export default function DashboardPage() {
         </StaggerItem>
         <StaggerItem>
           <StatCard
+            data-tour="stat-compliance"
             label="Compliance Score"
             value={
               <AnimatedCounter
@@ -532,7 +534,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 7-Day Spending Trend */}
         <FadeIn delay={0.2} className="lg:col-span-2">
-          <div className="bg-white rounded-xl p-4 border border-surface-border">
+          <div data-tour="chart-spending" className="bg-white rounded-xl p-4 border border-surface-border">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-bold text-navy">
@@ -615,7 +617,7 @@ export default function DashboardPage() {
 
         {/* ECFA Category Donut */}
         <FadeIn delay={0.3}>
-          <div className="bg-white rounded-xl p-4 border border-surface-border">
+          <div data-tour="chart-category" className="bg-white rounded-xl p-4 border border-surface-border">
             <h2 className="text-sm font-bold text-navy mb-1">
               Spending by ECFA Category
             </h2>
@@ -726,7 +728,7 @@ export default function DashboardPage() {
 
         {/* Compliance Alerts */}
         <FadeIn delay={0.35}>
-          <div className="bg-white rounded-xl p-4 border border-surface-border">
+          <div data-tour="alerts" className="bg-white rounded-xl p-4 border border-surface-border">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-navy">
                 Compliance Alerts

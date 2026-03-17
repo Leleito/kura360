@@ -623,7 +623,7 @@ export default function TransactionsPage() {
 
       {/* ---- Transactions Table ---- */}
       <FadeIn delay={0.3} direction="up">
-        <div className="bg-white rounded-2xl border border-surface-border shadow-sm overflow-hidden">
+        <div data-tour="transactions-table" className="bg-white rounded-2xl border border-surface-border shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>

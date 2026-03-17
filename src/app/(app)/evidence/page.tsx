@@ -350,6 +350,7 @@ export default function EvidencePage() {
           </div>
           <RoleGate permission="evidence:create">
             <button
+              data-tour="evidence-upload"
               onClick={() => setShowUploadModal(true)}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-[#1D6B3F] text-white text-xs font-bold rounded-lg hover:bg-[#1D6B3F]/90 transition-colors shadow-sm"
             >
@@ -507,7 +508,7 @@ export default function EvidencePage() {
 
       {/* Gallery View */}
       {viewMode === 'gallery' && (
-        <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <StaggerContainer data-tour="evidence-gallery" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredEvidence.map((item) => (
             <StaggerItem key={item.id}>
               <GalleryCard item={item} />

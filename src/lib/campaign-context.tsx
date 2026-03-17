@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { IS_DEMO, DEMO_CAMPAIGN } from '@/lib/demo';
 import type { Tables } from '@/types/database';
 
 type Campaign = Tables<'campaigns'>;
@@ -40,6 +41,42 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Demo mode: return hardcoded demo campaign without querying Supabase
+  if (IS_DEMO) {
+    const demoCampaign: Campaign = {
+      id: DEMO_CAMPAIGN.id,
+      candidate_name: DEMO_CAMPAIGN.candidate_name,
+      position: DEMO_CAMPAIGN.position,
+      county: DEMO_CAMPAIGN.county,
+      party: DEMO_CAMPAIGN.party,
+      spending_limit_kes: DEMO_CAMPAIGN.spending_limit_kes,
+      owner_id: 'demo-user-jane-wanjiku',
+      created_at: '2026-01-15T08:00:00Z',
+      updated_at: '2026-01-15T08:00:00Z',
+      is_active: true,
+      subscription_tier: 'pro',
+      constituency: null,
+      ward: null,
+      bank_name: null,
+      bank_account_number: null,
+      donation_portal_slug: null,
+    };
+
+    return (
+      <CampaignContext.Provider
+        value={{
+          campaign: demoCampaign,
+          campaigns: [demoCampaign],
+          loading: false,
+          switchCampaign: () => {},
+          refreshCampaigns: async () => {},
+        }}
+      >
+        {children}
+      </CampaignContext.Provider>
+    );
+  }
 
   const fetchCampaigns = useCallback(async () => {
     try {

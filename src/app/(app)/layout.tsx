@@ -4,13 +4,18 @@ import { RoleProvider } from '@/lib/rbac/use-role';
 import { ToastProvider } from '@/components/ui/toast';
 import { Sidebar, MobileBottomNav } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/top-bar';
+import { DemoBanner } from '@/components/layout/demo-banner';
+import { TourProvider } from '@/components/tour/tour-provider';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <CampaignProvider>
       <RoleProvider>
       <ToastProvider>
+        <TourProvider>
         <LayoutProvider>
+          <DemoBanner />
           <div className="flex h-screen overflow-hidden bg-[#F2F5F9]">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0 h-full">
@@ -21,7 +26,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <MobileBottomNav />
             </div>
           </div>
+          <TourOverlay />
         </LayoutProvider>
+        </TourProvider>
       </ToastProvider>
       </RoleProvider>
     </CampaignProvider>
