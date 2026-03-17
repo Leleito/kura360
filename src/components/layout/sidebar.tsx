@@ -19,27 +19,41 @@ import {
 } from 'lucide-react';
 import { KuraLogoWhite } from '@/components/ui/kura-logo';
 import { useLayout } from './layout-context';
+import { useRole } from '@/lib/rbac/use-role';
+import type { Permission } from '@/lib/rbac/permissions';
+import { ROLE_LABELS } from '@/lib/rbac/permissions';
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  /** Permission required to see this nav item (undefined = always visible) */
+  requiredPermission?: Permission;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/finance', icon: Wallet, label: 'Finance' },
-  { href: '/agents', icon: Users, label: 'Agents' },
-  { href: '/evidence', icon: Camera, label: 'Evidence' },
-  { href: '/donations', icon: Heart, label: 'Donations' },
-  { href: '/compliance', icon: CheckCircle, label: 'Compliance' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/finance', icon: Wallet, label: 'Finance', requiredPermission: 'transactions:read' },
+  { href: '/agents', icon: Users, label: 'Agents', requiredPermission: 'agents:read' },
+  { href: '/evidence', icon: Camera, label: 'Evidence', requiredPermission: 'evidence:read' },
+  { href: '/donations', icon: Heart, label: 'Donations', requiredPermission: 'donations:read' },
+  { href: '/compliance', icon: CheckCircle, label: 'Compliance', requiredPermission: 'compliance:read' },
+  { href: '/settings', icon: Settings, label: 'Settings', requiredPermission: 'settings:read' },
   { href: '/help', icon: HelpCircle, label: 'Help' },
 ];
-
-// Bottom mobile nav: first 5 items
-const MOBILE_NAV = NAV_ITEMS.slice(0, 5);
 
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useLayout();
+  const { role, can } = useRole();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
+
+  // Filter nav items by role permissions
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => !item.requiredPermission || can(item.requiredPermission)
+  );
 
   return (
     <>
@@ -126,7 +140,7 @@ export function Sidebar() {
         {/* Nav items */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto scrollbar-hide" aria-label="Main navigation">
           <div className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const active = isActive(item.href);
               const Icon = item.icon;
 
@@ -202,7 +216,9 @@ export function Sidebar() {
                 <div className="text-white text-[12px] truncate" style={{ fontWeight: 600 }}>
                   Jane Kamau
                 </div>
-                <div className="text-white/30 text-[10px]">Governor, Nakuru</div>
+                <div className="text-white/30 text-[10px]">
+                  {role ? ROLE_LABELS[role] : 'Member'}
+                </div>
               </div>
             )}
           </div>
@@ -216,14 +232,20 @@ export function Sidebar() {
 export function MobileBottomNav() {
   const pathname = usePathname();
   const { setMobileOpen, mobileOpen } = useLayout();
+  const { can } = useRole();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
 
+  // Show first 5 items that the user has permission to see
+  const mobileItems = NAV_ITEMS
+    .filter((item) => !item.requiredPermission || can(item.requiredPermission))
+    .slice(0, 5);
+
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="flex items-center justify-around h-14 px-1">
-        {MOBILE_NAV.map((item) => {
+        {mobileItems.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
 

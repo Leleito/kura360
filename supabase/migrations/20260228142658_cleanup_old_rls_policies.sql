@@ -1,0 +1,4 @@
+-- Migration: 20260228142658_cleanup_old_rls_policies
+-- Placeholder: cleanup of any old RLS policies from initial development
+-- The comprehensive policies in v2 supersede any earlier ones.
+-- No-op if no old policies exist.

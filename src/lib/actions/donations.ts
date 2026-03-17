@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { authorize } from '@/lib/rbac/authorize';
 import type { Json, Tables, TablesInsert } from '@/types/database';
 
 type Donation = Tables<'donations'>;
@@ -95,6 +96,9 @@ export async function createDonation(
   userId: string
 ): Promise<{ data: Donation | null; error?: string }> {
   try {
+    const auth = await authorize(input.campaign_id, 'donations:create');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     // ECFA compliance checks

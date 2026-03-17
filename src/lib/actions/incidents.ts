@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { authorize } from '@/lib/rbac/authorize';
 import type { Json, Tables, TablesInsert } from '@/types/database';
 
 type Incident = Tables<'incidents'>;
@@ -70,6 +71,9 @@ export async function createIncident(
   userId: string
 ): Promise<{ data: Incident | null; error?: string }> {
   try {
+    const auth = await authorize(input.campaign_id, 'incidents:create');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -103,6 +107,9 @@ export async function updateIncident(
   updates: Partial<IncidentInsert>
 ): Promise<{ data: Incident | null; error?: string }> {
   try {
+    const auth = await authorize(campaignId, 'incidents:update');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     const { data: oldData } = await supabase

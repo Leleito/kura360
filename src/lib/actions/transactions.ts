@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { authorize } from '@/lib/rbac/authorize';
 import type { Json, Tables, TablesInsert } from '@/types/database';
 
 type Transaction = Tables<'transactions'>;
@@ -88,6 +89,9 @@ export async function createTransaction(
   input: Omit<TransactionInsert, 'id' | 'created_at'>
 ): Promise<{ data: Transaction | null; error?: string }> {
   try {
+    const auth = await authorize(input.campaign_id, 'transactions:create');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -122,6 +126,9 @@ export async function updateTransaction(
   updates: Partial<TransactionInsert>
 ): Promise<{ data: Transaction | null; error?: string }> {
   try {
+    const auth = await authorize(campaignId, 'transactions:approve');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     // Get old values for audit
@@ -164,6 +171,9 @@ export async function deleteTransaction(
   userId: string
 ): Promise<{ error?: string }> {
   try {
+    const auth = await authorize(campaignId, 'transactions:delete');
+    if (!auth.ok) return { error: auth.error };
+
     const supabase = await createClient();
 
     const { data: oldData } = await supabase

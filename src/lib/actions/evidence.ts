@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { authorize } from '@/lib/rbac/authorize';
 import type { Json, Tables, TablesInsert } from '@/types/database';
 
 type EvidenceItem = Tables<'evidence_items'>;
@@ -95,6 +96,9 @@ export async function createEvidenceItem(
   userId: string
 ): Promise<{ data: EvidenceItem | null; error?: string }> {
   try {
+    const auth = await authorize(input.campaign_id, 'evidence:create');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -128,6 +132,9 @@ export async function updateEvidenceItem(
   updates: Partial<EvidenceInsert>
 ): Promise<{ data: EvidenceItem | null; error?: string }> {
   try {
+    const auth = await authorize(campaignId, 'evidence:verify');
+    if (!auth.ok) return { data: null, error: auth.error };
+
     const supabase = await createClient();
 
     const { data: oldData } = await supabase
