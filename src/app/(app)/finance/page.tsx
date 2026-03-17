@@ -44,6 +44,7 @@ import { useCampaign } from "@/lib/campaign-context";
 import { RoleGate } from '@/lib/rbac';
 import { getFinanceSummary, getTransactions, getSpendingTrend, type FinanceSummary } from "@/lib/actions/transactions";
 import { exportTransactionsCSV } from "@/lib/export";
+import { useToast } from "@/components/ui/toast";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -152,6 +153,7 @@ function CustomAreaTooltip({ active, payload }: { active?: boolean; payload?: Ar
 
 export default function FinancePage() {
   const { campaign } = useCampaign();
+  const { toast } = useToast();
   const activeCampaignId = campaign?.id ?? null;
 
   // ── State for real data ──
@@ -171,7 +173,7 @@ export default function FinancePage() {
   }>>([]);
   const [spendingTrendData, setSpendingTrendData] = useState<{ date: string; amount: number }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Toast handled by global ToastProvider
 
   useEffect(() => {
     if (!activeCampaignId) return;
@@ -222,12 +224,6 @@ export default function FinancePage() {
     fetchFinance();
   }, [activeCampaignId]);
 
-  // Auto-dismiss toast
-  useEffect(() => {
-    if (!toastMessage) return;
-    const timer = setTimeout(() => setToastMessage(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toastMessage]);
 
   /* ---- Derived data ---- */
   const spendingLimit = financeSummary?.spendingLimit ?? ECFA_SPENDING_LIMIT;
@@ -277,14 +273,14 @@ export default function FinancePage() {
   function handleExportCSV() {
     if (allRawTransactions.length > 0) {
       exportTransactionsCSV(allRawTransactions);
-      setToastMessage("CSV exported successfully!");
+      toast("CSV exported successfully!", "success");
     } else {
-      setToastMessage("No transaction data to export.");
+      toast("No transaction data to export.", "warning");
     }
   }
 
   function handleGenerateReport() {
-    setToastMessage("Report generation coming soon!");
+    toast("Report generation coming soon!", "info");
   }
 
   /* ------------------------------------------------------------------ */
@@ -310,13 +306,6 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast notification */}
-      {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-navy text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
-          {toastMessage}
-        </div>
-      )}
-
       {/* ---- Page header ---- */}
       <FadeIn direction="none" duration={0.3}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

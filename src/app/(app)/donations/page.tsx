@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -60,6 +60,7 @@ import {
   type ComplianceStatus,
 } from '@/lib/validators/donations';
 import { CSVImportForm } from '@/components/forms/csv-import-form';
+import { useQueryFilters } from '@/lib/hooks/use-query-filters';
 import { useCampaign } from '@/lib/campaign-context';
 import { RoleGate } from '@/lib/rbac';
 import { getDonations } from '@/lib/actions/donations';
@@ -226,6 +227,14 @@ function InflowTooltip({ active, payload, label }: { active?: boolean; payload?:
 /* -------------------------------------------------------------------------- */
 
 export default function DonationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <DonationsContent />
+    </Suspense>
+  );
+}
+
+function DonationsContent() {
   const router = useRouter();
   const { campaign } = useCampaign();
   const { user } = useUser();
@@ -237,11 +246,14 @@ export default function DonationsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  /* ---- Filters ---- */
-  const [search, setSearch] = useState('');
-  const [methodFilter, setMethodFilter] = useState('');
-  const [kycFilter, setKycFilter] = useState('');
-  const [complianceFilter, setComplianceFilter] = useState('');
+  /* ---- Filters (URL-synced) ---- */
+  const { filters, setFilter, clearFilters: clearUrlFilters } = useQueryFilters({
+    search: '',
+    method: '',
+    kyc: '',
+    compliance: '',
+  });
+  const { search, method: methodFilter, kyc: kycFilter, compliance: complianceFilter } = filters;
 
   /* ---- Modals ---- */
   const [modalOpen, setModalOpen] = useState(false);
@@ -576,7 +588,7 @@ export default function DonationsPage() {
             sub="KYC-verified individuals"
             variant="blue"
             icon={<Users className="h-4 w-4" />}
-            onClick={() => { setKycFilter('verified'); setMethodFilter(''); setComplianceFilter(''); }}
+            onClick={() => { clearUrlFilters(); setFilter('kyc', 'verified'); }}
           />
         </StaggerItem>
         <StaggerItem>
@@ -592,7 +604,7 @@ export default function DonationsPage() {
             sub={`${mpesaDonations.length} of ${allDonations.length} via M-Pesa`}
             variant="green"
             icon={<Smartphone className="h-4 w-4" />}
-            onClick={() => { setMethodFilter('mpesa'); setKycFilter(''); setComplianceFilter(''); }}
+            onClick={() => { clearUrlFilters(); setFilter('method', 'mpesa'); }}
           />
         </StaggerItem>
         <StaggerItem>
@@ -608,7 +620,7 @@ export default function DonationsPage() {
             sub={`${compliantCount} of ${allDonations.length} compliant`}
             variant={complianceRate >= 90 ? 'green' : complianceRate >= 70 ? 'orange' : 'red'}
             icon={<ShieldCheck className="h-4 w-4" />}
-            onClick={() => { setComplianceFilter('flagged'); setMethodFilter(''); setKycFilter(''); }}
+            onClick={() => { clearUrlFilters(); setFilter('compliance', 'flagged'); }}
           />
         </StaggerItem>
       </StaggerContainer>
@@ -751,25 +763,25 @@ export default function DonationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <SearchInput
                   value={search}
-                  onChange={setSearch}
+                  onChange={(v: string) => setFilter('search', v)}
                   placeholder="Search donors, refs..."
                 />
                 <Select
                   options={METHOD_OPTIONS}
                   value={methodFilter}
-                  onChange={(e) => setMethodFilter(e.target.value)}
+                  onChange={(e) => setFilter('method', e.target.value)}
                   placeholder="All Methods"
                 />
                 <Select
                   options={KYC_OPTIONS}
                   value={kycFilter}
-                  onChange={(e) => setKycFilter(e.target.value)}
+                  onChange={(e) => setFilter('kyc', e.target.value)}
                   placeholder="All KYC"
                 />
                 <Select
                   options={COMPLIANCE_OPTIONS}
                   value={complianceFilter}
-                  onChange={(e) => setComplianceFilter(e.target.value)}
+                  onChange={(e) => setFilter('compliance', e.target.value)}
                   placeholder="All Compliance"
                 />
               </div>

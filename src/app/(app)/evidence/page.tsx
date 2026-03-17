@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { EvidenceForm } from '@/components/forms/evidence-form';
 import {
@@ -33,6 +33,7 @@ import { SearchInput, Badge, DataTable } from '@/components/ui';
 import type { Column } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatDateShort } from '@/lib/utils';
+import { useQueryFilters } from '@/lib/hooks/use-query-filters';
 import { useCampaign } from '@/lib/campaign-context';
 import { RoleGate } from '@/lib/rbac';
 import { getEvidenceItems } from '@/lib/actions/evidence';
@@ -194,7 +195,7 @@ function GalleryCard({ item }: { item: EvidenceItem }) {
 // Main Page
 // ---------------------------------------------------------------------------
 
-export default function EvidencePage() {
+function EvidencePageInner() {
   const { campaign } = useCampaign();
   const activeCampaignId = campaign?.id ?? null;
 
@@ -203,10 +204,13 @@ export default function EvidencePage() {
   const [loading, setLoading] = useState(true);
 
   const [viewMode, setViewMode] = useState<'gallery' | 'list'>('gallery');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [countyFilter, setCountyFilter] = useState<string>('');
+  const { filters, setFilter, clearFilters: clearUrlFilters } = useQueryFilters({
+    search: '',
+    type: '',
+    status: '',
+    county: '',
+  });
+  const { search: searchQuery, type: typeFilter, status: statusFilter, county: countyFilter } = filters;
   const [showUploadModal, setShowUploadModal] = useState(false);
 
   // ---------------------------------------------------------------------------
@@ -372,7 +376,7 @@ export default function EvidencePage() {
           <FadeIn key={stat.label} delay={i * 0.1} direction="up">
             <button
               type="button"
-              onClick={() => setStatusFilter(statusFilter === stat.filter ? '' : stat.filter)}
+              onClick={() => setFilter('status', statusFilter === stat.filter ? '' : stat.filter)}
               className={cn(
                 'w-full text-left bg-white rounded-xl p-4 border border-surface-border border-l-4 transition-all duration-200',
                 'hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] cursor-pointer hover:scale-[1.01] active:scale-[0.99]',
@@ -438,7 +442,7 @@ export default function EvidencePage() {
               <div className="flex-1 w-full md:w-auto">
                 <SearchInput
                   value={searchQuery}
-                  onChange={setSearchQuery}
+                  onChange={(v: string) => setFilter('search', v)}
                   placeholder="Search by title, description, hash..."
                 />
               </div>
@@ -446,7 +450,7 @@ export default function EvidencePage() {
               {/* Type filter */}
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => setFilter('type', e.target.value)}
                 className="px-3 py-2 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue"
               >
                 <option value="">All Types</option>
@@ -456,7 +460,7 @@ export default function EvidencePage() {
               {/* Status filter */}
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => setFilter('status', e.target.value)}
                 className="px-3 py-2 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue"
               >
                 <option value="">All Statuses</option>
@@ -466,7 +470,7 @@ export default function EvidencePage() {
               {/* County filter */}
               <select
                 value={countyFilter}
-                onChange={(e) => setCountyFilter(e.target.value)}
+                onChange={(e) => setFilter('county', e.target.value)}
                 className="px-3 py-2 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue/30 focus:border-blue"
               >
                 <option value="">All Counties</option>
@@ -551,5 +555,13 @@ export default function EvidencePage() {
         onSuccess={refreshEvidence}
       />
     </div>
+  );
+}
+
+export default function EvidencePage() {
+  return (
+    <Suspense>
+      <EvidencePageInner />
+    </Suspense>
   );
 }

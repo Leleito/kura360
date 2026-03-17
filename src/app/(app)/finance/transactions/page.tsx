@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -34,6 +34,8 @@ import {
 import { useCampaign } from "@/lib/campaign-context";
 import { getTransactions } from "@/lib/actions/transactions";
 import { exportTransactionsCSV } from "@/lib/export";
+import { useQueryFilters } from "@/lib/hooks/use-query-filters";
+import { useToast } from "@/components/ui/toast";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -100,7 +102,16 @@ const PAGE_SIZE = 8;
 /* -------------------------------------------------------------------------- */
 
 export default function TransactionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <TransactionsContent />
+    </Suspense>
+  );
+}
+
+function TransactionsContent() {
   const { campaign } = useCampaign();
+  const { toast } = useToast();
   const activeCampaignId = campaign?.id ?? null;
 
   // ── Data state ──
@@ -119,7 +130,6 @@ export default function TransactionsPage() {
     recorded_by: string;
   }>>([]);
   const [dataLoading, setDataLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Fetch real data when campaign is active
@@ -156,19 +166,17 @@ export default function TransactionsPage() {
     fetchTransactions();
   }, [activeCampaignId]);
 
-  // Auto-dismiss toast
-  useEffect(() => {
-    if (!toastMessage) return;
-    const timer = setTimeout(() => setToastMessage(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toastMessage]);
+  // Toast is now handled by global ToastProvider
 
-  /* ---- Filters ---- */
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  /* ---- Filters (synced with URL search params) ---- */
+  const { filters, setFilter, clearFilters: clearUrlFilters } = useQueryFilters({
+    search: '',
+    category: '',
+    status: '',
+    dateFrom: '',
+    dateTo: '',
+  });
+  const { search, category: categoryFilter, status: statusFilter, dateFrom, dateTo } = filters;
 
   /* ---- Sort ---- */
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -266,21 +274,17 @@ export default function TransactionsPage() {
   }
 
   function clearFilters() {
-    setSearch("");
-    setCategoryFilter("");
-    setStatusFilter("");
-    setDateFrom("");
-    setDateTo("");
+    clearUrlFilters();
     setPage(1);
   }
 
   function handleExportCSV() {
     if (rawTransactions.length > 0) {
       exportTransactionsCSV(rawTransactions);
-      setToastMessage("CSV exported successfully!");
+      toast("CSV exported successfully!", "success");
     } else {
       // Fall back to mock data export format
-      setToastMessage("No real transaction data to export. Connect a campaign first.");
+      toast("No real transaction data to export. Connect a campaign first.", "warning");
     }
   }
 
@@ -325,13 +329,6 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast notification */}
-      {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-navy text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
-          {toastMessage}
-        </div>
-      )}
-
       {/* ---- Add Transaction Modal ---- */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -536,8 +533,8 @@ export default function TransactionsPage() {
             <div className="flex-1 min-w-[220px]">
               <SearchInput
                 value={search}
-                onChange={(v) => {
-                  setSearch(v);
+                onChange={(v: string) => {
+                  setFilter('search', v);
                   setPage(1);
                 }}
                 placeholder="Search by description, ID, notes, or person..."
@@ -548,7 +545,7 @@ export default function TransactionsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => {
-                setCategoryFilter(e.target.value);
+                setFilter('category', e.target.value);
                 setPage(1);
               }}
               className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
@@ -565,7 +562,7 @@ export default function TransactionsPage() {
             <select
               value={statusFilter}
               onChange={(e) => {
-                setStatusFilter(e.target.value);
+                setFilter('status', e.target.value);
                 setPage(1);
               }}
               className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
@@ -585,7 +582,7 @@ export default function TransactionsPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => {
-                  setDateFrom(e.target.value);
+                  setFilter('dateFrom', e.target.value);
                   setPage(1);
                 }}
                 className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"
@@ -599,7 +596,7 @@ export default function TransactionsPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => {
-                  setDateTo(e.target.value);
+                  setFilter('dateTo', e.target.value);
                   setPage(1);
                 }}
                 className="text-xs px-3 py-2.5 rounded-xl border border-surface-border bg-white text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue min-h-[44px] transition-colors"

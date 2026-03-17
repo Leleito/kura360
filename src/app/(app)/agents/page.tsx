@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users,
@@ -35,6 +35,7 @@ import {
 } from '@/components/ui';
 import { AnimatedCounter, FadeIn, StaggerContainer, StaggerItem } from '@/components/premium';
 import { cn, formatPhone, formatDate, percentage } from '@/lib/utils';
+import { useQueryFilters } from '@/lib/hooks/use-query-filters';
 import { useCampaign } from '@/lib/campaign-context';
 import { RoleGate } from '@/lib/rbac';
 import { useUser } from '@/lib/auth/hooks';
@@ -127,6 +128,10 @@ function mapDbAgentToUI(dbAgent: Tables<'agents'>): Agent {
 }
 
 export default function AgentsPage() {
+  return <Suspense fallback={null}><AgentsContent /></Suspense>;
+}
+
+function AgentsContent() {
   const router = useRouter();
   const { campaign } = useCampaign();
   const activeCampaignId = campaign?.id ?? null;
@@ -137,9 +142,12 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [activeStatus, setActiveStatus] = useState<AgentStatus | 'all'>('all');
+  // Filters (synced with URL search params)
+  const { filters, setFilter } = useQueryFilters({
+    search: '',
+    status: '',
+  });
+  const { search, status } = filters;
 
   // Registration modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -197,11 +205,11 @@ export default function AgentsPage() {
         agent.county.toLowerCase().includes(search.toLowerCase()) ||
         agent.phone.includes(search);
 
-      const matchesStatus = activeStatus === 'all' || agent.status === activeStatus;
+      const matchesStatus = status === '' || status === 'all' || agent.status === status;
 
       return matchesSearch && matchesStatus;
     });
-  }, [search, activeStatus, agents]);
+  }, [search, status, agents]);
 
   const totalAgents = agents.length;
   const deployedCount = agents.filter(
@@ -360,11 +368,11 @@ export default function AgentsPage() {
           <FadeIn key={stat.label} delay={i * 0.1} direction="up">
             <button
               type="button"
-              onClick={() => setActiveStatus(activeStatus === stat.filter ? 'all' : stat.filter)}
+              onClick={() => setFilter('status', status === stat.filter ? '' : stat.filter === 'all' ? '' : stat.filter)}
               className={cn(
                 'w-full text-left bg-white rounded-xl p-4 border border-surface-border border-l-4 transition-all duration-200',
                 'hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] cursor-pointer hover:scale-[1.01] active:scale-[0.99]',
-                activeStatus === stat.filter && stat.filter !== 'all' && 'ring-2 ring-blue/20',
+                status === stat.filter && stat.filter !== 'all' && 'ring-2 ring-blue/20',
                 stat.borderColor
               )}
             >
@@ -455,7 +463,7 @@ export default function AgentsPage() {
             <div className="flex-1">
               <SearchInput
                 value={search}
-                onChange={setSearch}
+                onChange={(v: string) => setFilter('search', v)}
                 placeholder="Search by name, county, or phone..."
               />
             </div>
@@ -464,14 +472,14 @@ export default function AgentsPage() {
           {/* Status filter pills */}
           <div className="flex flex-wrap gap-2">
             {statusPills.map((pill) => {
-              const isActive = activeStatus === pill.key;
+              const isActive = (status === '' || status === 'all') ? pill.key === 'all' : status === pill.key;
               const count = statusCounts[pill.key] || 0;
               const cfg = pill.key !== 'all' ? STATUS_CONFIG[pill.key] : null;
 
               return (
                 <button
                   key={pill.key}
-                  onClick={() => setActiveStatus(pill.key)}
+                  onClick={() => setFilter('status', pill.key === 'all' ? '' : pill.key)}
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all',
                     isActive
